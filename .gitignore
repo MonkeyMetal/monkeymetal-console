@@ -1,0 +1,38 @@
+# =====================================================
+# gbemu - .gitignore
+# =====================================================
+
+# ---- ESP-IDF 自动构建产物 ----
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
+dependencies.lock
+
+# ---- 真实 WiFi / 私密凭据 (不进版本库) ----
+components/wifi_bsp/user_secrets.h
+
+# ---- IDE / 编辑器 ----
+.vscode/
+.cache/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---- 操作系统 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 编译/调试中间产物 (build/ 之外的兜底) ----
+*.o
+*.obj
+*.elf
+*.a
+*.lib
+*.exe
+*.bin
+*.map
+*.pyc
+__pycache__/

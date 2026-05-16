@@ -1,0 +1,37 @@
+# gbemu sdkconfig.defaults
+# 目标: ESP32-S3 双核 LX7 @240MHz, 8MB PSRAM Octal, 16MB Flash
+#
+# 这份文件在 idf.py reconfigure 时被读入. 修改了之后必须 idf.py reconfigure 一次.
+
+CONFIG_IDF_TARGET="esp32s3"
+
+# Flash & QIO
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+
+# Custom partition table (we use the bigger app slot, see partitions.csv)
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# 8 MB Octal PSRAM @80 MHz - 用来放 GB 帧缓冲, ST7305 显存, gnuboy 工作内存等
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_USE_MALLOC=y
+
+# FreeRTOS tick @1kHz, 双核
+CONFIG_FREERTOS_HZ=1000
+CONFIG_FREERTOS_UNICORE=n
+
+# 编译优化 (size 比 perf 省 flash, gnuboy 不太吃 CPU 单核就够)
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+
+# FATFS 支持长文件名 + UTF-8 (TF 卡上有中文 ROM 名时不会乱码)
+CONFIG_FATFS_LFN_HEAP=y
+CONFIG_FATFS_API_ENCODING_UTF_8=y
+
+# 主任务栈加大 (gnuboy 模拟主循环有递归调用)
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# 关掉一些没用的 watchdog 日志噪音
+CONFIG_ESP_TASK_WDT_INIT=n

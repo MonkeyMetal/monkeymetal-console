@@ -1,0 +1,12 @@
+idf_component_register(
+    SRCS
+        "main.cpp"
+    INCLUDE_DIRS
+        "."
+    PRIV_REQUIRES
+        port_bsp
+        wifi_bsp
+        gnuboy_sys_esp32idf
+        esp_timer
+        nvs_flash
+)
