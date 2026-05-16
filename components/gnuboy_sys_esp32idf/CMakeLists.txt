@@ -6,4 +6,5 @@ idf_component_register(
     PRIV_REQUIRES
         esp_timer
         port_bsp
+        gnuboy
 )
