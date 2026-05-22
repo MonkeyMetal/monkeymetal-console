@@ -1,0 +1,10 @@
+idf_component_register(
+    SRCS
+        "udp_pad.c"
+    INCLUDE_DIRS
+        "."
+    PRIV_REQUIRES
+        log
+        lwip
+        gnuboy_sys_esp32idf
+)

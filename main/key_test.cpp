@@ -1,19 +1,21 @@
 /*
  * key_test.cpp - "did the key fire?" diagnostic mode.
  *
- *   At boot:   shows reset reason (RST / POWERON / SW / PANIC / ...) for 1.5 s
- *   Then loop: polls GPIO0 (BOOT button), draws "BOOT" while held, "WAIT..."
- *              when released. Each press refreshes the screen so you can
- *              physically confirm the key.
+ *   At boot:   shows reset reason for 1.5 s
+ *   Then loop: shows last-pressed button label (BOOT key or UDP pad event)
+ *              + duration since last event.
  *
- * RST note: pressing RST physically resets the SoC, so we can't draw while
- * it's held. Instead, after the chip reboots from an RST press we read
- * esp_reset_reason() = ESP_RST_EXT and show "RST" briefly. That's how the
- * user sees confirmation that RST worked.
+ * Two input sources:
+ *   1. GPIO0 BOOT button (polled every 40 ms)
+ *   2. UDP pad packets on :8888 (via udp_pad component callback)
+ *
+ * Use this to physically/network-verify both LCD + input paths before
+ * wiring the emulator back in.
  */
 
 #include "key_test.h"
 #include "display_bsp.h"
+#include "udp_pad.h"
 
 #include <esp_system.h>
 #include <esp_log.h>
@@ -21,6 +23,7 @@
 #include <freertos/task.h>
 #include <driver/gpio.h>
 #include <string.h>
+#include <atomic>
 
 namespace {
 
@@ -29,8 +32,9 @@ constexpr int H = 300;
 constexpr uint8_t BLACK = 0x00;
 constexpr uint8_t WHITE = 0xff;
 constexpr gpio_num_t BOOT_BTN = GPIO_NUM_0;
+constexpr const char *TAG = "key_test";
 
-/* 5x7 column-major font (bit0 = top row of column). Subset of ASCII. */
+/* 5x7 column-major font, bit0 = top row of column. */
 struct Glyph { char ch; uint8_t col[5]; };
 const Glyph kFont[] = {
     {' ', {0x00,0x00,0x00,0x00,0x00}},
@@ -100,25 +104,22 @@ void draw_text(DisplayPort *lcd, const char *s, int x0, int y0, int scale, uint8
     }
 }
 
-void draw_centered(DisplayPort *lcd, const char *big, const char *sub = nullptr)
+void draw_centered(DisplayPort *lcd, const char *big, const char *sub)
 {
     fill(lcd, 0, 0, W, H, WHITE);
 
-    /* big text in middle */
     int scale = 8;
     int tw = text_width(big, scale);
-    if (tw > W - 16) {                   /* shrink if it would overflow */
-        scale = 5;
-        tw = text_width(big, scale);
-    }
+    if (tw > W - 16) { scale = 5; tw = text_width(big, scale); }
+    if (tw > W - 16) { scale = 4; tw = text_width(big, scale); }
     int x = (W - tw) / 2;
     int y = (H - 7 * scale) / 2;
     draw_text(lcd, big, x, y, scale, BLACK);
 
-    /* subtitle near bottom */
-    const char *s = sub ? sub : "KEY TEST";
-    int sw = text_width(s, 2);
-    draw_text(lcd, s, (W - sw) / 2, H - 28, 2, BLACK);
+    if (sub && *sub) {
+        int sw = text_width(sub, 2);
+        draw_text(lcd, sub, (W - sw) / 2, H - 28, 2, BLACK);
+    }
 
     lcd->RLCD_Display();
 }
@@ -141,6 +142,24 @@ const char *reset_reason_str(esp_reset_reason_t r)
     }
 }
 
+/* shared state between UDP callback (Core 0) and the render loop. */
+struct LastInput {
+    char        label[16];
+    const char *state;       /* "PRESSED" / "RELEASED" */
+    std::atomic<uint32_t> seq{0};   /* bumped on every event */
+};
+LastInput g_last;
+
+void udp_cb(uint8_t btn_id, bool pressed, void * /*arg*/)
+{
+    const char *name = udp_pad_btn_name(btn_id);
+    /* Copy name into static buffer (callback may be invoked again). */
+    strncpy(g_last.label, name, sizeof(g_last.label) - 1);
+    g_last.label[sizeof(g_last.label) - 1] = '\0';
+    g_last.state = pressed ? "PRESSED" : "RELEASED";
+    g_last.seq.fetch_add(1, std::memory_order_release);
+}
+
 }  /* anonymous namespace */
 
 extern "C" void key_test_run(DisplayPort *lcd)
@@ -153,22 +172,39 @@ extern "C" void key_test_run(DisplayPort *lcd)
     cfg.intr_type       = GPIO_INTR_DISABLE;
     gpio_config(&cfg);
 
-    /* 1. Splash: which kind of reset just brought us here */
+    /* 1. Splash with reset reason */
     const char *rr = reset_reason_str(esp_reset_reason());
     draw_centered(lcd, rr, "RESET REASON");
     vTaskDelay(pdMS_TO_TICKS(1500));
 
-    /* 2. Live BOOT-button watcher */
-    int prev = -2;
-    draw_centered(lcd, "WAIT...", "PRESS BOOT");
+    /* 2. Subscribe to UDP pad events */
+    udp_pad_set_callback(udp_cb, nullptr);
+
+    /* 3. Idle screen */
+    strcpy(g_last.label, "WAIT");
+    g_last.state = "PRESS A KEY";
+    draw_centered(lcd, g_last.label, g_last.state);
+    uint32_t last_seq = g_last.seq.load(std::memory_order_acquire);
+
+    int prev_boot = -2;
+
     while (true) {
-        int pressed = (gpio_get_level(BOOT_BTN) == 0) ? 1 : 0;
-        if (pressed != prev) {
-            draw_centered(lcd,
-                          pressed ? "BOOT" : "WAIT...",
-                          pressed ? "PRESSED" : "PRESS BOOT");
-            prev = pressed;
+        /* BOOT GPIO0 polling */
+        int boot = (gpio_get_level(BOOT_BTN) == 0) ? 1 : 0;
+        if (boot != prev_boot) {
+            strcpy(g_last.label, "BOOT");
+            g_last.state = boot ? "PRESSED" : "RELEASED";
+            g_last.seq.fetch_add(1, std::memory_order_release);
+            prev_boot = boot;
         }
-        vTaskDelay(pdMS_TO_TICKS(40));
+
+        /* Redraw only when something changed (cheaper, avoids LCD flicker). */
+        uint32_t cur = g_last.seq.load(std::memory_order_acquire);
+        if (cur != last_seq) {
+            ESP_LOGI(TAG, "redraw: %s %s", g_last.label, g_last.state);
+            draw_centered(lcd, g_last.label, g_last.state);
+            last_seq = cur;
+        }
+        vTaskDelay(pdMS_TO_TICKS(30));
     }
 }

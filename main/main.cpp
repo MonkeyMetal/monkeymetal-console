@@ -27,6 +27,7 @@
 #include "gnuboy_sys_esp32idf.h"
 #include "monkey_metal.h"
 #include "key_test.h"
+#include "udp_pad.h"
 
 /* gnuboy core hooks - declared in sys.h, implemented in gnuboy_sys_esp32idf.
  * Need to be called once before emu_run. */
@@ -92,6 +93,9 @@ extern "C" void app_main(void)
     pcm_init();
     emu_init();
     ESP_LOGI(TAG, "[5/5] gnuboy sys-port + vid/pcm/emu initialized");
+
+    /* 5b. UDP keypad listener (will start receiving once WiFi gets IP) */
+    udp_pad_init();
 
     /* 6. enter emu_run (never returns) */
     ESP_LOGI(TAG, "Entering KEY TEST mode (gnuboy temporarily disabled)");
