@@ -7,13 +7,14 @@
 #include "regs.h"
 #include "mem.h"
 #include "rtc.h"
+#include "esp_attr.h"
 #include "lcd.h"
 #include "lcdc.h"
 #include "sound.h"
 
 struct mbc mbc;
 struct rom rom;
-struct ram ram;
+struct ram ram EXT_RAM_BSS_ATTR;
 struct rom bootrom;
 
 /*

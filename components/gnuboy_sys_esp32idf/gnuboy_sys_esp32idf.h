@@ -1,20 +1,31 @@
 /*
- * gnuboy_sys_esp32idf.h - gnuboy 平台移植层对外接口.
+ * gnuboy_sys_esp32idf.h - gnuboy platform port layer (public API).
  *
- * 这一层把 gnuboy 核心和具体硬件解耦. main.cpp 只调用这里的 init,
- * 后续 emu_run 主循环会在内部调用 gnuboy 的 emu_init/loader_init/emu_run.
+ * Internally implements every hook declared in gnuboy/sys.h
+ * (vid_*, pcm_*, ev_poll, sys_*) so the gnuboy core can link
+ * directly into an ESP-IDF project and run on hardware.
  */
 #pragma once
+
+#include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* 初始化 dither 任务 / 屏幕推送 / 输入子系统 (后期会扩展). 当前为占位. */
+/* One-time setup: allocate 16bpp framebuffer in PSRAM, create event queue. */
 void gnuboy_sys_init(void);
 
-/* 启动模拟主循环, 加载指定 ROM. 成功不返回. 失败 log + 返回. */
+/* Run emulator main loop. Call gnuboy_sys_init first. Path example
+ * "/sdcard/rom.gbc". Never returns. */
 void gnuboy_sys_run(const char *rom_path);
+
+/* Input source -> gnuboy event hook.
+ *   gnuboy_keycode: K_UP/K_DOWN/K_LEFT/K_RIGHT/'a'/'b'/K_ENTER/K_TAB ...
+ *                   (gnuboy default keymap: a=A, b=B, enter=START, tab=SELECT)
+ *   pressed: true = press, false = release. */
+void gnuboy_sys_post_key(int gnuboy_keycode, bool pressed);
 
 #ifdef __cplusplus
 }

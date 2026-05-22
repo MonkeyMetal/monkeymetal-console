@@ -98,7 +98,10 @@ static char *rtcfile;
 static char *saveprefix;
 
 static char *savename;
-static char *savedir;
+/* gbemu: PC build expects users' .gnuboyrc to set savedir; on ESP32 we
+ * have no rc file so default it to /sdcard so loader_init's
+ * "<savedir>/<name>.sav" path doesn't strlen(NULL). */
+static char *savedir = "/sdcard";
 
 static int saveslot;
 

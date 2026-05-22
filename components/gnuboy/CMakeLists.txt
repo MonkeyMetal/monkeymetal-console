@@ -36,8 +36,9 @@ idf_component_register(
     INCLUDE_DIRS "."
     PRIV_REQUIRES
         # gnuboy 自身不直接依赖 IDF 组件, 全靠 sys 层桥接.
-        # sys 层(gnuboy_sys_esp32idf) 提供 stdlib 之外的所有系统调用.
+        # esp_common 提供 EXT_RAM_BSS_ATTR (esp_attr.h).
         log
+        esp_common
 )
 
 # ---- 关掉对老 C 代码不友好的 warning, 让旧码顺利编译过 ----

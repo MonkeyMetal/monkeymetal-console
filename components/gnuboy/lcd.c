@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "esp_attr.h"
 #include "refresh.h"
 #include "palette.h"
 #include "defs.h"
@@ -41,7 +42,7 @@ struct scan scan;
 #define WT (scan.wt)
 #define WV (scan.wv)
 
-byte patpix[4096][8][8];
+byte patpix[4096][8][8] EXT_RAM_BSS_ATTR;
 byte patdirty[1024];
 byte anydirty;
 

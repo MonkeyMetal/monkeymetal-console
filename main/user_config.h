@@ -51,6 +51,7 @@
 #define GBEMU_UDP_INPUT_PORT     8888
 
 /* ===========================================================
- * 默认 ROM 路径 (后续可改成菜单选择)
+ * 默认 ROM 路径 (TF 卡根目录, FAT32, 文件名固定 rom.gb 或 rom.gbc)
+ * 后续可改成菜单选择.
  * =========================================================== */
-#define GBEMU_DEFAULT_ROM_PATH   "/sdcard/rom.gb"
+#define GBEMU_DEFAULT_ROM_PATH   "/sdcard/rom.gbc"

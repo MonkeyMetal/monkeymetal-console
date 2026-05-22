@@ -1,6 +1,8 @@
 idf_component_register(
     SRCS
         "main.cpp"
+        "monkey_metal.cpp"
+        "key_test.cpp"
     INCLUDE_DIRS
         "."
     PRIV_REQUIRES
@@ -9,4 +11,5 @@ idf_component_register(
         gnuboy_sys_esp32idf
         esp_timer
         nvs_flash
+        driver
 )

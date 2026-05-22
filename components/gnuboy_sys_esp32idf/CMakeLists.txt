@@ -1,6 +1,6 @@
 idf_component_register(
     SRCS
-        "gnuboy_sys_esp32idf.c"
+        "gnuboy_sys_esp32idf.cpp"
     INCLUDE_DIRS
         "."
     PRIV_REQUIRES
