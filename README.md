@@ -1,17 +1,17 @@
 <div align="center">
 
-# 🎮 gbemu
+# 🐒 MonkeyMetal Console
 
-**A GameBoy / GameBoy Color emulator for the Waveshare ESP32-S3-RLCD-4.2 reflective LCD board**
-
-**让微雪 ESP32-S3-RLCD-4.2 反射屏开发板变身 GameBoy 掌机**
+**An open-source 2D black-and-white handheld console**
+**一台开源 2D 黑白掌机**
 
 [English](#english) · [中文](#中文)
 
-![status](https://img.shields.io/badge/status-WIP-orange)
-![license](https://img.shields.io/badge/license-GPL--2.0-blue)
-![target](https://img.shields.io/badge/target-ESP32--S3-red)
+![status](https://img.shields.io/badge/status-design%20%2B%20M0-orange)
+![license](https://img.shields.io/badge/license-MIT-blue)
+![target](https://img.shields.io/badge/board-ESP32--S3--RLCD--4.2-red)
 ![idf](https://img.shields.io/badge/ESP--IDF-v5.5.x-green)
+![input](https://img.shields.io/badge/input-Bluetooth%20HID-blueviolet)
 
 </div>
 
@@ -23,162 +23,109 @@
 
 ### What is this?
 
-A from-scratch port of the [gnuboy](http://gnuboy.unix-fu.org/) GameBoy emulator
-to the **Waveshare ESP32-S3-RLCD-4.2** development board. The goal is to turn
-this dev board into a battery-friendly handheld console with a sunlight-readable
-black-and-white screen.
+**MonkeyMetal Console** is an open-source handheld game console built on the
+[Waveshare ESP32-S3-RLCD-4.2](https://www.waveshare.net/wiki/ESP32-S3-RLCD-4.2)
+dev board. Think of it as a hackable, sunlight-readable 2D black-and-white
+mini console with:
 
-The board's signature feature is a **300×400 1-bit-per-pixel reflective LCD**
-(ST7305) — no backlight, readable in direct sunlight, very low power. We use
-**Bayer 4×4 dithering** to convert GameBoy's 4 grayscale levels into pure
-black-and-white pixels.
+- **Reflective 1bpp LCD** (300×400) — readable outdoors, ultra-low power
+- **Bluetooth HID controllers** (8BitDo / Xbox / Switch Pro …)
+- **Online game store** — pull free open-source games over Wi-Fi
+- **Lua-scripted game runtime** — anyone who knows Lua can ship a game
+- **MIT licensed engine** — fork it, mod it, sell it
+
+This is **not an emulator**. It runs games made specifically for this console.
 
 ### 🛠️ Hardware
 
 | Item | Spec |
 | --- | --- |
 | Board | [Waveshare ESP32-S3-RLCD-4.2](https://www.waveshare.net/wiki/ESP32-S3-RLCD-4.2) |
-| MCU | ESP32-S3, dual-core Xtensa LX7 @240 MHz |
+| MCU | ESP32-S3 dual-core Xtensa LX7 @240 MHz |
 | RAM | 8 MB Octal PSRAM @80 MHz |
 | Flash | 16 MB QIO |
 | Display | ST7305 reflective LCD, 400×300, 1bpp |
-| SD slot | TF / microSD, 1-bit SDMMC mode |
-| Audio | ES8311 codec (planned) |
-| Sensors | PCF85063 RTC, SHTC3 (not used) |
-| USB | Type-C, with built-in USB-JTAG (no programmer needed) |
+| Storage | TF/microSD, 1-bit SDMMC |
+| Audio | ES8311 codec + I²S |
+| Wireless | Wi-Fi 2.4 G + Bluetooth 5 (BLE/Classic) |
+| Power | USB-C, optional 3.7 V Li-ion + TP4056 |
 
-### 📌 Pinout (used by gbemu)
+### 📊 Project status
 
-| Function | GPIO |
+We're at **M0 — clean scaffold**. The full design spec (16 sections, ~700 lines)
+lives in [`docs/MonkeyMetal-Console-Design.md`](docs/MonkeyMetal-Console-Design.md).
+
+| Milestone | Status |
 | --- | --- |
-| LCD MOSI | 12 |
-| LCD SCK | 11 |
-| LCD DC | 5 |
-| LCD CS | 40 |
-| LCD RST | 41 |
-| SD CLK | 38 |
-| SD CMD | 21 |
-| SD D0 | 39 |
-| I²C SDA | 13 |
-| I²C SCL | 14 |
-| BOOT button | 0 |
+| **M0** Project skeleton, hardware bring-up | ✅ Done |
+| **M1** Graphics engine (Bayer dither + sprites) | 🚧 Next |
+| **M2** Lua runtime + cart loader | ⏳ |
+| **M3** Built-in Snake demo | ⏳ |
+| **M4** Audio (ES8311 + 8-channel mixer) | ⏳ |
+| **M5** Bluetooth HID controllers | ⏳ |
+| **M6** Launcher / system menu | ⏳ |
+| **M7** Online store + OTA | ⏳ |
 
-### 📊 Current progress
+### 🚀 Quick start
 
-| Subsystem | Status |
-| --- | --- |
-| ST7305 LCD driver | ✅ Working |
-| SD card mount + ROM read | ✅ Working |
-| WiFi STA connect | ✅ Working |
-| MonkeyMetal boot splash | ✅ Working |
-| Reset reason + BOOT key diagnostic | ✅ Working |
-| gnuboy core compile + link | ✅ Working |
-| `loader_init` parses ROM header | ✅ Working |
-| `cpu_emulate` first instruction | ❌ `rom.bank` corrupted, debugging |
-| Bayer 4×4 dithering | ⏳ Planned |
-| WiFi UDP keypad input | ⏳ Planned |
-| Hardware 8-key board (DPad+AB+START/SELECT) | ⏳ Planned |
-| ES8311 audio | ⏳ Planned |
+#### Prerequisites
+- ESP-IDF v5.5.x
+- VS Code with the **Espressif IDF** extension (recommended)
+- Waveshare ESP32-S3-RLCD-4.2 + USB-C cable
+- A FAT32-formatted TF card
 
-### 🚀 Getting started
-
-#### 1. Prerequisites
-
-- **ESP-IDF v5.5.x** installed ([Espressif install guide](https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32s3/get-started/index.html))
-- **VS Code** + **Espressif IDF extension** (recommended) or any environment with `idf.py` available
-- A **Waveshare ESP32-S3-RLCD-4.2** board + USB-C cable
-- A **TF/microSD card** (FAT32 formatted) and a card reader
-- A legally-obtained `.gb` or `.gbc` ROM file
-
-#### 2. Clone
-
+#### Build & flash
 ```bash
-git clone https://github.com/MonkeyMetal/gbemu.git
-cd gbemu
-```
-
-#### 3. Configure WiFi credentials
-
-```bash
+git clone https://github.com/MonkeyMetal/monkeymetal-console.git
+cd monkeymetal-console
 cp components/wifi_bsp/user_secrets.h.example components/wifi_bsp/user_secrets.h
-```
+# edit user_secrets.h with your Wi-Fi SSID/password
 
-Then edit `components/wifi_bsp/user_secrets.h`:
-
-```c
-#define GBEMU_WIFI_SSID     "your_wifi_name"
-#define GBEMU_WIFI_PASSWORD "your_wifi_password"
-```
-
-This file is in `.gitignore`, so your real credentials never get committed.
-
-#### 4. Prepare the SD card
-
-1. Format the TF card as **FAT32**
-2. Copy your ROM to the **root** of the card
-3. Rename it to **`rom.gbc`** (lowercase, even for `.gb` files)
-4. Safely eject and insert into the board's TF slot
-
-#### 5. Build & flash
-
-VS Code:
-
-> `Ctrl+Shift+P` → `ESP-IDF: Build, Flash and Monitor your Project` → 🔥
-
-Command line:
-
-```bash
 idf.py set-target esp32s3
-idf.py -p COMx build flash monitor    # Linux/macOS: -p /dev/ttyUSBx
+idf.py -p COMx build flash monitor
 ```
 
-First build pulls in WiFi/lwIP and takes 3–8 minutes; later builds are fast.
+In VS Code: `Ctrl+Shift+P` → `ESP-IDF: Build, Flash and Monitor your Project`.
 
-#### 6. What you should see
+#### What you'll see (M0 scaffold)
+1. MonkeyMetal boot splash (~1.6 s)
+2. Reset reason banner
+3. Live BOOT-key state — press the on-board BOOT button and the screen updates
 
-1. **Boot splash**: a monkey ("MonkeyMetal") with the title beneath, ~1.6 s
-2. **Diagnostic mode** (current build): shows reset reason, then watches the
-   BOOT key — press it and the screen shows `BOOT` / `PRESSED`
-3. Game loading is **not enabled** in this build because of an outstanding
-   `rom.bank` corruption bug. To switch back to emulator mode, edit
-   `main/main.cpp` and replace `key_test_run(&g_lcd)` with
-   `gnuboy_sys_run(GBEMU_DEFAULT_ROM_PATH)` — but it will currently crash on
-   the first CPU instruction.
+That's all M0 does. Everything else (graphics engine, Lua VM, controller pairing,
+store) lands in subsequent milestones.
 
-### 📁 Project layout
+### 📁 Layout
 
 ```
-gbemu/
-├── main/
-│   ├── main.cpp                  Boot sequence (NVS → LCD → SD → WiFi → emu)
-│   ├── monkey_metal.cpp/h        Boot splash
-│   ├── key_test.cpp/h            Reset-reason + BOOT-key diagnostic
-│   └── user_config.h             GPIO pin map (one place)
+monkeymetal-console/
+├── README.md                     this file
+├── LICENSE                       MIT
+├── docs/
+│   ├── MonkeyMetal-Console-Design.md   full design spec
+│   └── DEVELOPMENT-GUIDE.md            how to contribute / run an AI agent
+├── main/                         M0 scaffold (boot + splash + diagnostic)
 ├── components/
-│   ├── port_bsp/                 ST7305 LCD + SDMMC drivers (from Waveshare demo)
-│   ├── wifi_bsp/                 WiFi STA bring-up
-│   ├── gnuboy/                   gnuboy 1.0.4 emulator core (GPLv2)
-│   └── gnuboy_sys_esp32idf/      Platform port: vid_/pcm_/ev_/sys_*
+│   ├── port_bsp/                 ST7305 LCD + SDMMC drivers
+│   └── wifi_bsp/                 Wi-Fi STA bring-up
 ├── partitions.csv                8 MB factory + 4 MB FAT
-└── sdkconfig.defaults            PSRAM Octal @80MHz, BSS-in-PSRAM, etc.
+└── sdkconfig.defaults            PSRAM Octal, BSS-in-PSRAM, etc.
 ```
 
-### ⚠️ About ROMs
+### 🤝 Contributing
 
-This repository **does not include any game ROM**. You are responsible for
-obtaining ROMs legally — typically by dumping cartridges you own using a tool
-like GB Operator, or using homebrew/CC0-licensed games.
+This project is **architecture + product first**. Day-to-day implementation
+is delegated to AI agents that follow
+[`docs/DEVELOPMENT-GUIDE.md`](docs/DEVELOPMENT-GUIDE.md). Humans focus on
+review, playtesting, and shipping issues.
+
+If you want to write a *game* (not the engine itself), wait for M3 — the cart
+format and Lua API will be stable enough by then.
 
 ### 📝 License
 
-**GPL-2.0-or-later**. Most of the code comes from gnuboy 1.0.4 which is GPLv2,
-so the whole project must follow the same license. See `LICENSE`.
-
-### 🙏 Acknowledgements
-
-- [gnuboy](http://gnuboy.unix-fu.org/) — Laguna et al.
-- [Waveshare](https://www.waveshare.net/wiki/ESP32-S3-RLCD-4.2) — board + demo code
-- [Espressif](https://www.espressif.com/) — ESP-IDF toolchain
+MIT. See [`LICENSE`](LICENSE). Engine code, examples, and tools are all MIT.
+Each game cart ships with its own license inside its directory.
 
 </details>
 
@@ -190,164 +137,104 @@ so the whole project must follow the same license. See `LICENSE`.
 
 ### 这是什么
 
-把 [gnuboy](http://gnuboy.unix-fu.org/) GameBoy 模拟器从零移植到**微雪
-ESP32-S3-RLCD-4.2** 开发板。目标是把这块板做成一台续航好、阳光下也能看清的
-黑白掌机。
+**MonkeyMetal Console** 是一台基于
+[微雪 ESP32-S3-RLCD-4.2](https://www.waveshare.net/wiki/ESP32-S3-RLCD-4.2)
+开发板的开源掌机。它的卖点:
 
-板子的最大特色是一块 **300×400 1bpp 反射屏**(ST7305 驱动)——不需要背光、太阳
-底下也清楚、功耗极低,但只有黑白两色。我们用 **Bayer 4×4 抖动算法**把 GB 的
-4 阶灰度压成纯黑白像素。
+- **反射式 1bpp LCD**(300×400)—— 阳光下可读、功耗极低
+- **蓝牙手柄**(8BitDo / Xbox / Switch Pro 都能用)
+- **在线游戏商店** —— 通过 WiFi 下载免费开源游戏
+- **Lua 脚本游戏运行时** —— 会写 Lua 就能做游戏
+- **MIT 协议** —— 随便 fork、改、商用
 
-### 🛠️ 硬件
+它**不是模拟器**,跑的是专门为这台机器写的游戏。
+
+### 🛠️ 硬件规格
 
 | 项目 | 规格 |
 | --- | --- |
 | 开发板 | [微雪 ESP32-S3-RLCD-4.2](https://www.waveshare.net/wiki/ESP32-S3-RLCD-4.2) |
-| 主控 | ESP32-S3,双核 Xtensa LX7 @240 MHz |
+| 主控 | ESP32-S3 双核 Xtensa LX7 @240 MHz |
 | RAM | 8 MB 八线 PSRAM @80 MHz |
 | Flash | 16 MB QIO |
 | 显示 | ST7305 反射屏,400×300,1bpp |
-| 卡槽 | TF / microSD,1-bit SDMMC 模式 |
-| 音频 | ES8311 编解码芯片(暂未用) |
-| 传感器 | PCF85063 RTC、SHTC3(暂未用) |
-| USB | Type-C,内置 USB-JTAG(不需要外置烧录器) |
+| 存储 | TF/microSD,1-bit SDMMC |
+| 音频 | ES8311 编解码 + I²S |
+| 无线 | WiFi 2.4G + 蓝牙 5(BLE/经典) |
+| 供电 | USB-C,选配 3.7V 锂电 + TP4056 |
 
-### 📌 引脚分配(gbemu 用到的)
+### 📊 项目进度
 
-| 功能 | GPIO |
+**M0 — 工程骨架**。完整设计规范(16 节,约 700 行)见
+[`docs/MonkeyMetal-Console-Design.md`](docs/MonkeyMetal-Console-Design.md)。
+
+| 里程碑 | 状态 |
 | --- | --- |
-| LCD MOSI | 12 |
-| LCD SCK | 11 |
-| LCD DC | 5 |
-| LCD CS | 40 |
-| LCD RST | 41 |
-| SD CLK | 38 |
-| SD CMD | 21 |
-| SD D0 | 39 |
-| I²C SDA | 13 |
-| I²C SCL | 14 |
-| BOOT 键 | 0 |
+| **M0** 工程骨架 + 硬件 bring-up | ✅ 完成 |
+| **M1** 图形引擎(Bayer 抖动 + 精灵) | 🚧 下一步 |
+| **M2** Lua 运行时 + 卡带加载器 | ⏳ |
+| **M3** 内置贪吃蛇 demo | ⏳ |
+| **M4** 音频(ES8311 + 8 通道混音) | ⏳ |
+| **M5** 蓝牙 HID 手柄 | ⏳ |
+| **M6** 系统菜单 | ⏳ |
+| **M7** 在线商店 + OTA | ⏳ |
 
-### 📊 当前进度
+### 🚀 快速上手
 
-| 子系统 | 状态 |
-| --- | --- |
-| ST7305 LCD 驱动 | ✅ 完成 |
-| SD 卡挂载 + ROM 读取 | ✅ 完成 |
-| WiFi STA 联网 | ✅ 完成 |
-| MonkeyMetal 开机动画 | ✅ 完成 |
-| 复位原因 + BOOT 键诊断 | ✅ 完成 |
-| gnuboy 核心编译 + 链接 | ✅ 完成 |
-| `loader_init` 解析 ROM 头 | ✅ 完成 |
-| `cpu_emulate` 跑第一条指令 | ❌ `rom.bank` 损坏,排查中 |
-| Bayer 4×4 抖动 | ⏳ 待做 |
-| WiFi UDP 手柄输入 | ⏳ 待做 |
-| 物理 8 键面板(↑↓←→AB START SELECT) | ⏳ 待做 |
-| ES8311 音频 | ⏳ 待做 |
+#### 准备
+- ESP-IDF v5.5.x
+- VS Code + **Espressif IDF** 扩展(推荐)
+- 微雪 ESP32-S3-RLCD-4.2 + Type-C 线
+- FAT32 格式化的 TF 卡
 
-### 🚀 上手教程
-
-#### 1. 先准备
-
-- **ESP-IDF v5.5.x** 已安装([乐鑫安装指南](https://docs.espressif.com/projects/esp-idf/zh_CN/v5.5/esp32s3/get-started/index.html))
-- **VS Code** + **Espressif IDF 扩展**(推荐),或任意能用 `idf.py` 的环境
-- 一块 **微雪 ESP32-S3-RLCD-4.2** 板 + USB-C 数据线
-- 一张 **TF/microSD 卡**(FAT32 格式) + 读卡器
-- 一个**合法获得**的 `.gb` 或 `.gbc` ROM 文件
-
-#### 2. 拉代码
-
+#### 编译烧录
 ```bash
-git clone https://github.com/MonkeyMetal/gbemu.git
-cd gbemu
-```
-
-#### 3. 配置 WiFi
-
-```bash
+git clone https://github.com/MonkeyMetal/monkeymetal-console.git
+cd monkeymetal-console
 cp components/wifi_bsp/user_secrets.h.example components/wifi_bsp/user_secrets.h
-```
+# 编辑 user_secrets.h 填 WiFi 凭据
 
-然后编辑 `components/wifi_bsp/user_secrets.h`:
-
-```c
-#define GBEMU_WIFI_SSID     "你的wifi名称"
-#define GBEMU_WIFI_PASSWORD "你的wifi密码"
-```
-
-这个文件已在 `.gitignore` 里,真实凭据不会被 git 提交。
-
-#### 4. 准备 SD 卡
-
-1. TF 卡格式化成 **FAT32**
-2. ROM 文件拷到卡的**根目录**
-3. 改名为 **`rom.gbc`**(全小写,即使是 `.gb` 文件也用这个名字)
-4. 安全弹出,插到板子的 TF 卡槽
-
-#### 5. 编译烧录
-
-VS Code:
-
-> `Ctrl+Shift+P` → `ESP-IDF: Build, Flash and Monitor your Project` → 🔥
-
-命令行:
-
-```bash
 idf.py set-target esp32s3
-idf.py -p COMx build flash monitor    # Linux/macOS: -p /dev/ttyUSBx
+idf.py -p COMx build flash monitor
 ```
 
-首次编译要拉 WiFi/lwIP 等组件,耗时 3–8 分钟,之后增量编译很快。
+VS Code: `Ctrl+Shift+P` → `ESP-IDF: Build, Flash and Monitor your Project`。
 
-#### 6. 应该看到什么
+#### 当前能看到什么(M0 骨架)
+1. MonkeyMetal 开机动画(约 1.6 秒)
+2. 复位原因显示
+3. BOOT 键实时检测 —— 按板载 BOOT 键,屏幕同步刷新
 
-1. **开机动画**:一只猴子(MonkeyMetal)+ 下方标题,约 1.6 秒
-2. **诊断模式**(当前 build):先显示复位原因,然后监听 BOOT 键 —— 按下屏幕变
-   `BOOT` / `PRESSED`
-3. 游戏运行**当前已禁用**,因为还有一个 `rom.bank` 损坏 bug。想切回模拟器
-   模式,编辑 `main/main.cpp` 把 `key_test_run(&g_lcd)` 换成
-   `gnuboy_sys_run(GBEMU_DEFAULT_ROM_PATH)` —— 但目前 CPU 第一条指令就会崩。
+M0 阶段就这些。图形引擎、Lua VM、蓝牙配对、商店等都在后续里程碑。
 
-### 📁 工程结构
+### 📁 目录结构
 
 ```
-gbemu/
-├── main/
-│   ├── main.cpp                  启动流程(NVS → LCD → SD → WiFi → 模拟器)
-│   ├── monkey_metal.cpp/h        开机动画
-│   ├── key_test.cpp/h            复位原因 + BOOT 键诊断
-│   └── user_config.h             GPIO 引脚集中宏
+monkeymetal-console/
+├── README.md                     本文件
+├── LICENSE                       MIT
+├── docs/
+│   ├── MonkeyMetal-Console-Design.md   完整设计规范
+│   └── DEVELOPMENT-GUIDE.md            协作/AI 开发指南
+├── main/                         M0 骨架(启动 + 启动屏 + 诊断)
 ├── components/
-│   ├── port_bsp/                 ST7305 LCD + SDMMC 驱动(改自微雪 demo)
-│   ├── wifi_bsp/                 WiFi STA 启动
-│   ├── gnuboy/                   gnuboy 1.0.4 模拟器核心(GPLv2)
-│   └── gnuboy_sys_esp32idf/      平台移植层: vid_/pcm_/ev_/sys_*
-├── partitions.csv                8 MB 应用 + 4 MB FAT
-└── sdkconfig.defaults            PSRAM Octal @80MHz、.bss 放 PSRAM 等
+│   ├── port_bsp/                 ST7305 LCD + SDMMC 驱动
+│   └── wifi_bsp/                 WiFi STA 启动
+├── partitions.csv                8 MB factory + 4 MB FAT
+└── sdkconfig.defaults            PSRAM 八线、BSS 进 PSRAM 等
 ```
 
-### ⚠️ 关于 ROM
+### 🤝 协作方式
 
-仓库**不包含任何游戏 ROM**。请自行**合法获取** —— 比如用 GB Operator 从你
-拥有的实体卡带里 dump,或使用 homebrew / CC0 授权的开源游戏。
+我们做**架构 + 产品定义**。具体实现交给遵循
+[`docs/DEVELOPMENT-GUIDE.md`](docs/DEVELOPMENT-GUIDE.md)的 AI agent。
+人类负责审阅、试玩、提 issue。
+
+想写游戏(不是引擎)?等 M3 完成再来,那时卡带格式和 Lua API 才稳定。
 
 ### 📝 许可
 
-**GPL-2.0-or-later**。大部分代码源自 gnuboy 1.0.4(GPLv2),整体必须使用相同
-许可。详见 `LICENSE`。
-
-### 🙏 致谢
-
-- [gnuboy](http://gnuboy.unix-fu.org/) —— Laguna 等人
-- [微雪 Waveshare](https://www.waveshare.net/wiki/ESP32-S3-RLCD-4.2) —— 开发板 + demo 代码
-- [乐鑫 Espressif](https://www.espressif.com/) —— ESP-IDF 工具链
+MIT。详见 [`LICENSE`](LICENSE)。引擎、示例、工具都是 MIT。
+每个游戏卡带在自己目录里带自己的 license。
 
 </details>
-
----
-
-<div align="center">
-
-Made with ❤️ on a Waveshare ESP32-S3-RLCD-4.2 · By **MonkeyMetal**
-
-</div>

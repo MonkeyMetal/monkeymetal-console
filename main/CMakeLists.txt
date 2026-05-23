@@ -8,8 +8,6 @@ idf_component_register(
     PRIV_REQUIRES
         port_bsp
         wifi_bsp
-        gnuboy_sys_esp32idf
-        udp_pad
         esp_timer
         nvs_flash
         driver
