@@ -2,12 +2,12 @@ idf_component_register(
     SRCS
         "main.cpp"
         "monkey_metal.cpp"
-        "key_test.cpp"
     INCLUDE_DIRS
         "."
     PRIV_REQUIRES
         port_bsp
         wifi_bsp
+        gfx_engine
         esp_timer
         nvs_flash
         driver

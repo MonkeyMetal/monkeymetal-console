@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "display_bsp.cpp"
         "sdcard_bsp.cpp"
+        "port_bsp.cpp"
     INCLUDE_DIRS
         "."
     REQUIRES

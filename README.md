@@ -7,7 +7,7 @@
 
 [English](#english) · [中文](#中文)
 
-![status](https://img.shields.io/badge/status-design%20%2B%20M0-orange)
+![status](https://img.shields.io/badge/status-M1%20graphics-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 ![target](https://img.shields.io/badge/board-ESP32--S3--RLCD--4.2-red)
 ![idf](https://img.shields.io/badge/ESP--IDF-v5.5.x-green)
@@ -58,8 +58,8 @@ lives in [`docs/MonkeyMetal-Console-Design.md`](docs/MonkeyMetal-Console-Design.
 | Milestone | Status |
 | --- | --- |
 | **M0** Project skeleton, hardware bring-up | ✅ Done |
-| **M1** Graphics engine (Bayer dither + sprites) | 🚧 Next |
-| **M2** Lua runtime + cart loader | ⏳ |
+| **M1** Graphics engine (Bayer dither + sprites) | ✅ Done (hardware verified 2026-05-23) |
+| **M2** Lua runtime + cart loader | 🚧 Next |
 | **M3** Built-in Snake demo | ⏳ |
 | **M4** Audio (ES8311 + 8-channel mixer) | ⏳ |
 | **M5** Bluetooth HID controllers | ⏳ |
@@ -87,13 +87,12 @@ idf.py -p COMx build flash monitor
 
 In VS Code: `Ctrl+Shift+P` → `ESP-IDF: Build, Flash and Monitor your Project`.
 
-#### What you'll see (M0 scaffold)
+#### What you'll see (M1)
 1. MonkeyMetal boot splash (~1.6 s)
-2. Reset reason banner
-3. Live BOOT-key state — press the on-board BOOT button and the screen updates
+2. Full-screen Bayer-dithered gradient (black → white, 2 s) — validates dither quality
+3. Geometric shapes: filled rect, outline rect, three grey-scale circles, diagonal lines
 
-That's all M0 does. Everything else (graphics engine, Lua VM, controller pairing,
-store) lands in subsequent milestones.
+M2 (Lua runtime) is next.
 
 ### 📁 Layout
 
@@ -104,8 +103,9 @@ monkeymetal-console/
 ├── docs/
 │   ├── MonkeyMetal-Console-Design.md   full design spec
 │   └── DEVELOPMENT-GUIDE.md            how to contribute / run an AI agent
-├── main/                         M0 scaffold (boot + splash + diagnostic)
+├── main/                         M1 boot + graphics demo
 ├── components/
+│   ├── gfx_engine/               M1 16bpp framebuffer + Bayer dither + draw API
 │   ├── port_bsp/                 ST7305 LCD + SDMMC drivers
 │   └── wifi_bsp/                 Wi-Fi STA bring-up
 ├── partitions.csv                8 MB factory + 4 MB FAT
@@ -165,14 +165,14 @@ Each game cart ships with its own license inside its directory.
 
 ### 📊 项目进度
 
-**M0 — 工程骨架**。完整设计规范(16 节,约 700 行)见
+**M1 — 图形引擎**。完整设计规范(16 节,约 700 行)见
 [`docs/MonkeyMetal-Console-Design.md`](docs/MonkeyMetal-Console-Design.md)。
 
 | 里程碑 | 状态 |
 | --- | --- |
 | **M0** 工程骨架 + 硬件 bring-up | ✅ 完成 |
-| **M1** 图形引擎(Bayer 抖动 + 精灵) | 🚧 下一步 |
-| **M2** Lua 运行时 + 卡带加载器 | ⏳ |
+| **M1** 图形引擎(Bayer 抖动 + 精灵) | ✅ 完成(真机验收 2026-05-23) |
+| **M2** Lua 运行时 + 卡带加载器 | 🚧 下一步 |
 | **M3** 内置贪吃蛇 demo | ⏳ |
 | **M4** 音频(ES8311 + 8 通道混音) | ⏳ |
 | **M5** 蓝牙 HID 手柄 | ⏳ |
@@ -200,12 +200,12 @@ idf.py -p COMx build flash monitor
 
 VS Code: `Ctrl+Shift+P` → `ESP-IDF: Build, Flash and Monitor your Project`。
 
-#### 当前能看到什么(M0 骨架)
+#### 当前能看到什么(M1)
 1. MonkeyMetal 开机动画(约 1.6 秒)
-2. 复位原因显示
-3. BOOT 键实时检测 —— 按板载 BOOT 键,屏幕同步刷新
+2. Bayer 抖动渐变全屏(黑→白,2 秒)—— 验证抖动质量
+3. 几何图形:实心矩形、空心矩形、三个灰阶圆、对角线
 
-M0 阶段就这些。图形引擎、Lua VM、蓝牙配对、商店等都在后续里程碑。
+M2(Lua 运行时)是下一步。
 
 ### 📁 目录结构
 

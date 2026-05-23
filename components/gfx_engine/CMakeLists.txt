@@ -1,0 +1,10 @@
+idf_component_register(
+    SRCS
+        "gfx_framebuffer.c"
+        "gfx_bayer.c"
+        "gfx_draw.c"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        port_bsp
+)
