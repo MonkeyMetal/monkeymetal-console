@@ -1,0 +1,9 @@
+{
+  "name": "Snake",
+  "id": "com.monkey.snake",
+  "version": "1.0.0",
+  "author": "MonkeyMetal Team",
+  "engine_min": "0.2.0",
+  "tags": ["arcade", "classic"],
+  "entry": "cart.lua"
+}

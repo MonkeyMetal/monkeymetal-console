@@ -8,6 +8,7 @@ idf_component_register(
         port_bsp
         wifi_bsp
         gfx_engine
+        lua_runtime
         esp_timer
         nvs_flash
         driver
