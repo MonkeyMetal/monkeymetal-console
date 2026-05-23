@@ -48,6 +48,8 @@ class DisplayPort {
     void RLCD_Init();
     void RLCD_ColorClear(uint8_t color);
     void RLCD_Display();
+    /// @brief Push raw 1bpp buffer directly to LCD (sends address window + data). Blocks until done.
+    void lcd_flush_raw(const uint8_t *data, int len);
 	#if (AlgorithmOptimization != 3)
     void RLCD_SetPortraitPixel(uint16_t x, uint16_t y, uint8_t color);      //竖屏显示
     void RLCD_SetLandscapePixel(uint16_t x, uint16_t y, uint8_t color);     //横屏显示

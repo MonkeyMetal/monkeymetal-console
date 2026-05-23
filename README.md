@@ -7,7 +7,7 @@
 
 [English](#english) · [中文](#中文)
 
-![status](https://img.shields.io/badge/status-M1%20graphics-brightgreen)
+![status](https://img.shields.io/badge/status-M3%20Snake%20playable-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 ![target](https://img.shields.io/badge/board-ESP32--S3--RLCD--4.2-red)
 ![idf](https://img.shields.io/badge/ESP--IDF-v5.5.x-green)
@@ -52,15 +52,15 @@ This is **not an emulator**. It runs games made specifically for this console.
 
 ### 📊 Project status
 
-We're at **M0 — clean scaffold**. The full design spec (16 sections, ~700 lines)
+We're at **M3 — Snake is playable**. The full design spec (16 sections, ~700 lines)
 lives in [`docs/MonkeyMetal-Console-Design.md`](docs/MonkeyMetal-Console-Design.md).
 
 | Milestone | Status |
 | --- | --- |
 | **M0** Project skeleton, hardware bring-up | ✅ Done |
-| **M1** Graphics engine (Bayer dither + sprites) | ✅ Done (hardware verified 2026-05-23) |
-| **M2** Lua runtime + cart loader | 🚧 Next |
-| **M3** Built-in Snake demo | ⏳ |
+| **M1** Graphics engine (Bayer dither + draw API) | ✅ Done (hardware verified 2026-05-23) |
+| **M2** Lua 5.4 runtime + cart loader | ✅ Done (hardware verified 2026-05-23) |
+| **M3** Built-in Snake demo | ✅ Done (hardware verified 2026-05-23) |
 | **M4** Audio (ES8311 + 8-channel mixer) | ⏳ |
 | **M5** Bluetooth HID controllers | ⏳ |
 | **M6** Launcher / system menu | ⏳ |
@@ -87,12 +87,13 @@ idf.py -p COMx build flash monitor
 
 In VS Code: `Ctrl+Shift+P` → `ESP-IDF: Build, Flash and Monitor your Project`.
 
-#### What you'll see (M1)
+#### What you'll see (M3)
 1. MonkeyMetal boot splash (~1.6 s)
-2. Full-screen Bayer-dithered gradient (black → white, 2 s) — validates dither quality
-3. Geometric shapes: filled rect, outline rect, three grey-scale circles, diagonal lines
+2. Snake title screen — press **BOOT** to start
+3. Play Snake: **BOOT key = turn right 90°**, eat food to grow, avoid walls and yourself
+4. Game Over screen with score bar — press **BOOT** to restart
 
-M2 (Lua runtime) is next.
+Controls use the on-board BOOT key only (Bluetooth HID controllers land in M5).
 
 ### 📁 Layout
 
@@ -103,11 +104,20 @@ monkeymetal-console/
 ├── docs/
 │   ├── MonkeyMetal-Console-Design.md   full design spec
 │   └── DEVELOPMENT-GUIDE.md            how to contribute / run an AI agent
-├── main/                         M1 boot + graphics demo
+├── main/                         boot sequence + cart launch
 ├── components/
-│   ├── gfx_engine/               M1 16bpp framebuffer + Bayer dither + draw API
+│   ├── gfx_engine/               16bpp framebuffer + Bayer dither + draw API
+│   ├── lua_runtime/              Lua 5.4 VM + gfx/input/system bindings
 │   ├── port_bsp/                 ST7305 LCD + SDMMC drivers
 │   └── wifi_bsp/                 Wi-Fi STA bring-up
+├── sdcard_root/
+│   └── games/
+│       ├── hello/                M2 hello world cart
+│       └── snake/                M3 Snake game cart
+├── docs/
+│   ├── MonkeyMetal-Console-Design.md
+│   ├── DEVELOPMENT-GUIDE.md
+│   └── gfx-engine.md
 ├── partitions.csv                8 MB factory + 4 MB FAT
 └── sdkconfig.defaults            PSRAM Octal, BSS-in-PSRAM, etc.
 ```
@@ -119,8 +129,8 @@ is delegated to AI agents that follow
 [`docs/DEVELOPMENT-GUIDE.md`](docs/DEVELOPMENT-GUIDE.md). Humans focus on
 review, playtesting, and shipping issues.
 
-If you want to write a *game* (not the engine itself), wait for M3 — the cart
-format and Lua API will be stable enough by then.
+**M3 is done — the cart format and Lua API are stable.** If you want to write a
+game, copy `sdcard_root/games/snake/` as a template and start hacking `cart.lua`.
 
 ### 📝 License
 
@@ -165,15 +175,15 @@ Each game cart ships with its own license inside its directory.
 
 ### 📊 项目进度
 
-**M1 — 图形引擎**。完整设计规范(16 节,约 700 行)见
+**M3 — 贪吃蛇可玩**。完整设计规范(16 节,约 700 行)见
 [`docs/MonkeyMetal-Console-Design.md`](docs/MonkeyMetal-Console-Design.md)。
 
 | 里程碑 | 状态 |
 | --- | --- |
 | **M0** 工程骨架 + 硬件 bring-up | ✅ 完成 |
-| **M1** 图形引擎(Bayer 抖动 + 精灵) | ✅ 完成(真机验收 2026-05-23) |
-| **M2** Lua 运行时 + 卡带加载器 | 🚧 下一步 |
-| **M3** 内置贪吃蛇 demo | ⏳ |
+| **M1** 图形引擎(Bayer 抖动 + 绘图 API) | ✅ 完成(真机验收 2026-05-23) |
+| **M2** Lua 5.4 运行时 + 卡带加载器 | ✅ 完成(真机验收 2026-05-23) |
+| **M3** 内置贪吃蛇 demo | ✅ 完成(真机验收 2026-05-23) |
 | **M4** 音频(ES8311 + 8 通道混音) | ⏳ |
 | **M5** 蓝牙 HID 手柄 | ⏳ |
 | **M6** 系统菜单 | ⏳ |
@@ -200,12 +210,13 @@ idf.py -p COMx build flash monitor
 
 VS Code: `Ctrl+Shift+P` → `ESP-IDF: Build, Flash and Monitor your Project`。
 
-#### 当前能看到什么(M1)
+#### 当前能看到什么(M3)
 1. MonkeyMetal 开机动画(约 1.6 秒)
-2. Bayer 抖动渐变全屏(黑→白,2 秒)—— 验证抖动质量
-3. 几何图形:实心矩形、空心矩形、三个灰阶圆、对角线
+2. 贪吃蛇标题画面 —— 按 **BOOT 键** 开始
+3. 游戏:按 **BOOT 键右转 90°**,吃食物变长,碰墙或碰自身结束
+4. Game Over 画面 + 得分条 —— 按 **BOOT 键** 重开
 
-M2(Lua 运行时)是下一步。
+目前输入只有板载 BOOT 键(M5 蓝牙手柄后会换成真正的手柄操作)。
 
 ### 📁 目录结构
 
@@ -216,10 +227,20 @@ monkeymetal-console/
 ├── docs/
 │   ├── MonkeyMetal-Console-Design.md   完整设计规范
 │   └── DEVELOPMENT-GUIDE.md            协作/AI 开发指南
-├── main/                         M0 骨架(启动 + 启动屏 + 诊断)
+├── main/                         启动序列 + 加载卡带
 ├── components/
+│   ├── gfx_engine/               16bpp 帧缓冲 + Bayer 抖动 + 绘图 API
+│   ├── lua_runtime/              Lua 5.4 VM + gfx/input/system binding
 │   ├── port_bsp/                 ST7305 LCD + SDMMC 驱动
 │   └── wifi_bsp/                 WiFi STA 启动
+├── sdcard_root/
+│   └── games/
+│       ├── hello/                M2 hello world 卡带
+│       └── snake/                M3 贪吃蛇卡带
+├── docs/
+│   ├── MonkeyMetal-Console-Design.md   完整设计规范
+│   ├── DEVELOPMENT-GUIDE.md            协作/AI 开发指南
+│   └── gfx-engine.md                   图形引擎文档
 ├── partitions.csv                8 MB factory + 4 MB FAT
 └── sdkconfig.defaults            PSRAM 八线、BSS 进 PSRAM 等
 ```
@@ -230,7 +251,7 @@ monkeymetal-console/
 [`docs/DEVELOPMENT-GUIDE.md`](docs/DEVELOPMENT-GUIDE.md)的 AI agent。
 人类负责审阅、试玩、提 issue。
 
-想写游戏(不是引擎)?等 M3 完成再来,那时卡带格式和 Lua API 才稳定。
+**M3 已完成,卡带格式和 Lua API 已稳定。** 想写游戏?把 `sdcard_root/games/snake/` 拷一份,改 `cart.lua` 就能跑。
 
 ### 📝 许可
 

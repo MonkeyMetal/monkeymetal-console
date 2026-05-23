@@ -225,6 +225,20 @@ void DisplayPort::RLCD_Sendbuffera(uint8_t *Data, int len) {
 void DisplayPort::Set_ResetIOLevel(uint8_t level) {
     gpio_set_level((gpio_num_t) rst_, level ? 1 : 0);
 }
+
+void DisplayPort::lcd_flush_raw(const uint8_t *data, int len)
+{
+    RLCD_SendCommand(0x2A);
+    RLCD_SendData(0x12);
+    RLCD_SendData(0x2A);
+
+    RLCD_SendCommand(0x2B);
+    RLCD_SendData(0x00);
+    RLCD_SendData(0xC7);
+
+    RLCD_SendCommand(0x2C);
+    RLCD_Sendbuffera(const_cast<uint8_t*>(data), len);
+}
 #if (AlgorithmOptimization != 3)
 
 void DisplayPort::RLCD_SetPortraitPixel(uint16_t x, uint16_t y, uint8_t color) {
