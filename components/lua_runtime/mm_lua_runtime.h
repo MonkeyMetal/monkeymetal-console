@@ -22,6 +22,20 @@ esp_err_t mm_lua_run_cart(const char *cart_dir);
 /// @brief Deinitialize Lua VM and free PSRAM.
 void mm_lua_deinit(void);
 
+/// @brief Get next cart path set by system.run_cart().
+/// Caller must run it, then deinit+reinit Lua VM before running the next cart.
+/// Returns NULL if no next cart was requested.
+const char *mm_lua_get_next_cart(void);
+
+/// @brief Clear the next-cart buffer (call before running a new cart).
+void mm_lua_clear_next_cart(void);
+
+/// @brief Set next cart path (called by system.run_cart Lua binding).
+void mm_lua_set_next_cart(const char *path);
+
+/// @brief Set next cart + trigger exit (used by C-side global hotkey + Lua system.run_cart).
+void mm_lua_request_cart(const char *path);
+
 #ifdef __cplusplus
 }
 #endif

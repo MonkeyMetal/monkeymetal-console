@@ -7,6 +7,7 @@
 ///   gfx.line(x1,y1, x2,y2, c)
 ///   gfx.rect(x, y, w, h, c, fill)   fill: bool, default false
 ///   gfx.circle(cx, cy, r, c, fill)  fill: bool, default false
+///   gfx.text(s, x, y, c)      8x8 font string (ASCII only)
 ///   gfx.flip()                push frame to LCD (~30 ms)
 
 #include "lua.h"
@@ -72,6 +73,17 @@ static int l_gfx_circle(lua_State *L)
     return 0;
 }
 
+static int l_gfx_text(lua_State *L)
+{
+    const char *s = luaL_checkstring(L, 1);
+    int x = (int)luaL_checkinteger(L, 2);
+    int y = (int)luaL_checkinteger(L, 3);
+    gfx_color_t c = GFX_BLACK;
+    if (lua_gettop(L) >= 4) c = l_color(L, 4);
+    gfx_text(s, x, y, c);
+    return 0;
+}
+
 static int l_gfx_flip(lua_State *L)
 {
     (void)L;
@@ -86,6 +98,7 @@ static const luaL_Reg gfx_funcs[] = {
     {"line",   l_gfx_line},
     {"rect",   l_gfx_rect},
     {"circle", l_gfx_circle},
+    {"text",   l_gfx_text},
     {"flip",   l_gfx_flip},
     {NULL, NULL}
 };

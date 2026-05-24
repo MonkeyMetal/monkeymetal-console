@@ -58,6 +58,18 @@ void gfx_rect(int x, int y, int w, int h, gfx_color_t color, bool fill);
 /// @param fill true=filled, false=outline only
 void gfx_circle(int cx, int cy, int r, gfx_color_t color, bool fill);
 
+/// @brief Draw a single character (8×8 bitmap font) at (x, y).
+/// @param ch   ASCII character code (32–126)
+/// @param x, y Top-left pixel coordinate
+/// @param color 16bpp grayscale
+void gfx_text_char(char ch, int x, int y, gfx_color_t color);
+
+/// @brief Draw a null-terminated string using the 8×8 font.
+/// @param s     ASCII string
+/// @param x, y  Top-left pixel coordinate
+/// @param color 16bpp grayscale
+void gfx_text(const char *s, int x, int y, gfx_color_t color);
+
 /// @brief Apply Bayer 4×4 dither and push to LCD. Blocks until DMA completes (~30 ms).
 /// @return ESP_OK on success
 esp_err_t gfx_flush(void);

@@ -1,15 +1,15 @@
 /*
- * MonkeyMetal Console - main.cpp (M2: Lua Runtime)
+ * MonkeyMetal Console - main.cpp (M6: Launcher)
  *
  * Boot sequence:
  *   1. NVS init
- *   2. ST7305 LCD bring-up + MonkeyMetal boot splash
- *   3. SD card mount at /sdcard
- *   4. Wi-Fi STA (async)
- *   5. Init graphics engine
- *   6. Init Lua VM
- *   7. Run cart from /sdcard/games/hello/cart.lua  (M2 validation)
- *      (M6 launcher will replace the hardcoded path)
+ *   2. LCD bring-up + splash
+ *   3. SD mount
+ *   4. Wi-Fi STA
+ *   5. Graphics engine
+ *   6. Audio engine
+ *   7. BT HID host (reconnect bonded or scan)
+ *   8. Launcher loop: /sdcard/system/launcher → games → back
  */
 
 #include <stdio.h>
@@ -26,6 +26,9 @@
 #include "monkey_metal.h"
 #include "gfx_engine.h"
 #include "mm_lua_runtime.h"
+#include "audio_engine.h"
+#include "bt_hid_host.h"
+#include "driver/gpio.h"
 
 static const char *TAG = "mm";
 
@@ -36,11 +39,148 @@ DisplayPort g_lcd(GBEMU_LCD_MOSI_GPIO, GBEMU_LCD_SCK_GPIO,
 
 static CustomSDPort *g_sd = nullptr;
 
+// ── BT Pairing Screen ───────────────────────────────────────────────────────
+// Simple 8×8 font UI. BOOT key controls selection.
+#define BOOT_GPIO  GPIO_NUM_0
+
+static bool boot_pressed(void)
+{
+    return gpio_get_level(BOOT_GPIO) == 0;  // active-low with pullup
+}
+
+static void draw_centered(const char *s, int y, gfx_color_t c)
+{
+    int w_px = (int)strlen(s) * 8;
+    int x = (GFX_WIDTH - w_px) / 2;
+    if (x < 0) x = 0;
+    gfx_text(s, x, y, c);
+}
+
+static void bt_pairing_screen(void)
+{
+    // Configure BOOT GPIO for pairing screen input
+    gpio_config_t boot_cfg = {
+        .pin_bit_mask = (1ULL << BOOT_GPIO),
+        .mode         = GPIO_MODE_INPUT,
+        .pull_up_en   = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type    = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&boot_cfg);
+
+    gfx_clear(GFX_WHITE);
+    draw_centered("BLUETOOTH PAIRING", 16, GFX_BLACK);
+    gfx_line(40, 32, GFX_WIDTH - 40, 32, GFX_GRAY(180));
+    draw_centered("Scanning...", GFX_HEIGHT / 2 - 20, GFX_GRAY(128));
+    gfx_flush();
+
+    int  wait_elapsed   = 0;
+    bool auto_connected  = false;
+    bool prev_boot       = false;
+    int  boot_hold_ms    = 0;
+    int  last_flush_ms   = 0;
+
+    while (wait_elapsed < 30000) {
+        vTaskDelay(pdMS_TO_TICKS(200));
+        wait_elapsed += 200;
+
+        bt_hid_scan_result_t devs[8];
+        int ndev = bt_hid_get_scan_results(devs, 8);
+
+        // ── Auto-connect: exactly 1 device found after 5s scanning ────────
+        if (!auto_connected && ndev == 1 && wait_elapsed >= 5000) {
+            auto_connected = true;
+            bt_hid_scan_stop();
+
+            gfx_clear(GFX_WHITE);
+            draw_centered("CONNECTING...", GFX_HEIGHT / 2 - 24, GFX_BLACK);
+            gfx_text(devs[0].name, 40, GFX_HEIGHT / 2, GFX_GRAY(128));
+            draw_centered("(auto)", GFX_HEIGHT / 2 + 16, GFX_GRAY(180));
+            gfx_flush();
+
+            esp_err_t ret = bt_hid_connect_ex(devs[0].bda, devs[0].addr_type);
+            gfx_clear(GFX_WHITE);
+            if (ret == ESP_OK) {
+                draw_centered("CONNECTED!", GFX_HEIGHT / 2 - 12, GFX_BLACK);
+                gfx_text(devs[0].name, 40, GFX_HEIGHT / 2 + 12, GFX_GRAY(64));
+            } else {
+                draw_centered("FAILED", GFX_HEIGHT / 2 - 12, GFX_BLACK);
+                draw_centered("Using BOOT key", GFX_HEIGHT / 2 + 12, GFX_GRAY(128));
+            }
+            gfx_flush();
+            vTaskDelay(pdMS_TO_TICKS(2000));
+            return;
+        }
+
+        // ── Manual: BOOT key to cycle/hold-to-select ────────────────────
+        bool cur_boot = boot_pressed();
+        if (cur_boot && !prev_boot) {
+            boot_hold_ms = 200;
+        } else if (cur_boot && prev_boot) {
+            boot_hold_ms += 200;
+        } else if (!cur_boot && prev_boot) {
+            boot_hold_ms = 0;
+        }
+        prev_boot = cur_boot;
+
+        if (boot_hold_ms >= 1500 && ndev > 0) {
+            bt_hid_scan_stop();
+            gfx_clear(GFX_WHITE);
+            draw_centered("CONNECTING...", GFX_HEIGHT / 2 - 12, GFX_BLACK);
+            gfx_text(devs[0].name, 40, GFX_HEIGHT / 2 + 12, GFX_GRAY(128));
+            gfx_flush();
+
+            esp_err_t ret = bt_hid_connect_ex(devs[0].bda, devs[0].addr_type);
+            gfx_clear(GFX_WHITE);
+            if (ret == ESP_OK) {
+                draw_centered("CONNECTED!", GFX_HEIGHT / 2 - 12, GFX_BLACK);
+                gfx_text(devs[0].name, 40, GFX_HEIGHT / 2 + 12, GFX_GRAY(64));
+            } else {
+                draw_centered("FAILED", GFX_HEIGHT / 2 - 12, GFX_BLACK);
+                draw_centered("Using BOOT key", GFX_HEIGHT / 2 + 12, GFX_GRAY(128));
+            }
+            gfx_flush();
+            vTaskDelay(pdMS_TO_TICKS(2000));
+            return;
+        }
+
+        // ── Redraw ───────────────────────────────────────────────────────
+        if (wait_elapsed - last_flush_ms >= 500) {
+            last_flush_ms = wait_elapsed;
+            gfx_clear(GFX_WHITE);
+            draw_centered("BLUETOOTH PAIRING", 16, GFX_BLACK);
+            gfx_line(40, 32, GFX_WIDTH - 40, 32, GFX_GRAY(180));
+
+            if (ndev == 0) {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "Scanning... %02ds", (30 - wait_elapsed / 1000));
+                draw_centered(buf, GFX_HEIGHT / 2 - 12, GFX_GRAY(128));
+                draw_centered("Hold BOOT to skip", GFX_HEIGHT / 2 + 20, GFX_GRAY(180));
+            } else {
+                draw_centered(devs[0].name, GFX_HEIGHT / 2 - 12, GFX_BLACK);
+                char rssi_buf[16];
+                snprintf(rssi_buf, sizeof(rssi_buf), "RSSI %d", devs[0].rssi);
+                draw_centered(rssi_buf, GFX_HEIGHT / 2 + 4, GFX_GRAY(128));
+                draw_centered("Auto-connect in 5s", GFX_HEIGHT / 2 + 24, GFX_GRAY(128));
+                draw_centered("Hold BOOT to connect now", GFX_HEIGHT / 2 + 36, GFX_GRAY(180));
+            }
+            gfx_flush();
+        }
+    }
+
+    bt_hid_scan_stop();
+    gfx_clear(GFX_WHITE);
+    draw_centered("NO DEVICE FOUND", GFX_HEIGHT / 2 - 12, GFX_BLACK);
+    draw_centered("Using BOOT key", GFX_HEIGHT / 2 + 12, GFX_GRAY(128));
+    gfx_flush();
+    vTaskDelay(pdMS_TO_TICKS(1500));
+}
+
 extern "C" void app_main(void)
 {
     printf("\n");
     printf("====================================================\n");
-    printf("  MonkeyMetal Console (M3: Snake)\n");
+    printf("  MonkeyMetal Console (M6: Launcher)\n");
     printf("  build " __DATE__ " " __TIME__ "\n");
     printf("====================================================\n");
     fflush(stdout);
@@ -54,39 +194,84 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(ret);
     ESP_LOGI(TAG, "[1/4] NVS OK");
 
-    /* 2. LCD + boot splash */
+    /* 2. Audio engine (before LCD so splash can play startup tones) */
+    esp_err_t audio_ret = audio_engine_init();
+    if (audio_ret != ESP_OK) {
+        ESP_LOGW(TAG, "[2/9] Audio init failed (%s), continuing without audio",
+                 esp_err_to_name(audio_ret));
+    } else {
+        ESP_LOGI(TAG, "[2/9] Audio engine OK");
+    }
+
+    /* 3. LCD + boot splash (with startup tones now available) */
     g_lcd.RLCD_Init();
     monkey_metal_play(&g_lcd);
-    ESP_LOGI(TAG, "[2/4] LCD + splash OK");
+    ESP_LOGI(TAG, "[3/9] LCD + splash OK");
 
-    /* 3. SD */
+    /* 4. SD */
     g_sd = new CustomSDPort(GBEMU_SD_MOUNTPOINT,
                             GBEMU_SD_CLK_GPIO, GBEMU_SD_CMD_GPIO,
                             GBEMU_SD_D0_GPIO, 1);
-    ESP_LOGI(TAG, "[3/4] SD attempted at %s", GBEMU_SD_MOUNTPOINT);
+    ESP_LOGI(TAG, "[4/9] SD attempted at %s", GBEMU_SD_MOUNTPOINT);
 
-    /* 4. Wi-Fi (async, GOT_IP arrives later) */
+    /* 5. Wi-Fi (async, GOT_IP arrives later) */
     gbemu_wifi_init();
-    ESP_LOGI(TAG, "[4/4] WiFi init kicked off");
+    ESP_LOGI(TAG, "[5/9] WiFi init kicked off");
 
-    /* 5. Init graphics engine */
+    /* 6. Init graphics engine */
     ESP_ERROR_CHECK(gfx_init());
-    ESP_LOGI(TAG, "[5/6] Graphics engine OK");
+    ESP_LOGI(TAG, "[6/9] Graphics engine OK");
 
-    /* 6. Init Lua VM */
-    ESP_ERROR_CHECK(mm_lua_init());
-    ESP_LOGI(TAG, "[6/6] Lua VM OK");
+    /* 7. Init BT HID host (non-fatal: Snake works fine with BOOT key) */
+    esp_err_t bt_ret = bt_hid_init();
+    if (bt_ret != ESP_OK) {
+        ESP_LOGW(TAG, "[7/9] BT HID init failed (%s), continuing without BT",
+                 esp_err_to_name(bt_ret));
+    } else {
+        ESP_LOGI(TAG, "[7/9] BT HID host OK");
 
-    /* 7. Run Snake cart (M3)
-     *    SD card must have /sdcard/games/snake/cart.lua */
-    const char *cart = "/sdcard/games/snake";
-    ESP_LOGI(TAG, "Running cart: %s", cart);
-    esp_err_t err = mm_lua_run_cart(cart);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Cart failed, halting");
+        // Try reconnect bonded device first
+        if (!bt_hid_reconnect_bonded()) {
+            // No bonded device — scan and show pairing screen
+            bt_hid_scan_start(30);
+            ESP_LOGI(TAG, "BT: Scanning for gamepads...");
+
+            // Show pairing screen with device list
+            bt_pairing_screen();
+        }
     }
 
-    mm_lua_deinit();
-    ESP_LOGI(TAG, "Cart exited. System idle.");
-    while (1) { vTaskDelay(pdMS_TO_TICKS(1000)); }
+    /* 8. Launcher + cart loop */
+    const char *cart = "/sdcard/system/launcher";
+    char cart_buf[128];
+    ESP_LOGI(TAG, "[8/9] Entering launcher loop");
+
+    while (cart) {
+        // Copy to local buffer before init (init may clear the next-cart buffer)
+        strncpy(cart_buf, cart, sizeof(cart_buf) - 1);
+        cart_buf[sizeof(cart_buf) - 1] = '\0';
+
+        ESP_ERROR_CHECK(mm_lua_init());
+        ESP_LOGI(TAG, "Running cart: %s", cart_buf);
+        esp_err_t err = mm_lua_run_cart(cart_buf);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "Cart %s error: %s", cart_buf, esp_err_to_name(err));
+        }
+        mm_lua_deinit();
+
+        // Check if cart requested a switch
+        const char *next = mm_lua_get_next_cart();
+        if (next && next[0]) {
+            cart = next;
+        } else {
+            cart = NULL;
+        }
+    }
+
+    ESP_LOGI(TAG, "Launcher exited. System idle.");
+    mm_lua_deinit(); // safety
+    while (1) {
+        bt_hid_poll_reconnect();
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
 }

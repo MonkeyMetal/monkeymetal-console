@@ -38,12 +38,15 @@ idf_component_register(
         "mm_lua_gfx.c"
         "mm_lua_input.c"
         "mm_lua_system.c"
+        "mm_lua_audio.c"
     INCLUDE_DIRS
         "."
         "lua54"
     REQUIRES
         gfx_engine
         port_bsp
+        audio_engine
+        input_bt_hid
         fatfs
         esp_timer
         driver

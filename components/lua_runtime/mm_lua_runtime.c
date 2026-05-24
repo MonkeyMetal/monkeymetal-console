@@ -13,18 +13,26 @@
 #include <string.h>
 #include <stdio.h>
 
-// Binding registration prototypes (defined in mm_lua_gfx.c / input / system)
+// Binding registration prototypes (defined in mm_lua_gfx.c / input / system / audio)
 int mm_lua_open_gfx(lua_State *L);
 int mm_lua_open_input(lua_State *L);
 int mm_lua_open_system(lua_State *L);
+int mm_lua_open_audio(lua_State *L);
 
-// Input poll (edge detection) — called once per frame before update()
+// Input poll / snap / hotkey helpers
 void mm_input_poll(void);
+void mm_input_snap(void);
+void mm_input_reset_hotkeys(void);
+bool mm_input_boot_held(void);
+bool mm_input_select_pressed(void);
 
 static const char *TAG = "lua_rt";
 
 // Global Lua state (one VM per console, replaced on each cart load)
 static lua_State *s_L = NULL;
+static char s_next_cart[128] = {0};
+static bool s_is_launcher = false;
+static int  s_boot_hold  = 0;
 
 // ── PSRAM allocator ──────────────────────────────────────────────────────────
 // Lua's default allocator uses libc malloc which goes to internal RAM.
@@ -72,6 +80,7 @@ esp_err_t mm_lua_init(void)
     luaL_requiref(s_L, "gfx",    mm_lua_open_gfx,    1); lua_pop(s_L, 1);
     luaL_requiref(s_L, "input",  mm_lua_open_input,  1); lua_pop(s_L, 1);
     luaL_requiref(s_L, "system", mm_lua_open_system, 1); lua_pop(s_L, 1);
+    luaL_requiref(s_L, "audio",  mm_lua_open_audio,  1); lua_pop(s_L, 1);
 
     // Restrict dangerous base functions
     lua_pushnil(s_L); lua_setglobal(s_L, "dofile");
@@ -91,6 +100,32 @@ void mm_lua_deinit(void)
     }
 }
 
+const char *mm_lua_get_next_cart(void)
+{
+    return s_next_cart[0] ? s_next_cart : NULL;
+}
+
+void mm_lua_clear_next_cart(void)
+{
+    s_next_cart[0] = '\0';
+}
+
+void mm_lua_set_next_cart(const char *path)
+{
+    strncpy(s_next_cart, path, sizeof(s_next_cart) - 1);
+    s_next_cart[sizeof(s_next_cart) - 1] = '\0';
+}
+
+// Called by C-side global hotkey or Lua-side system.run_cart
+void mm_lua_request_cart(const char *path)
+{
+    mm_lua_set_next_cart(path);
+    if (s_L) {
+        lua_pushboolean(s_L, true);
+        lua_setglobal(s_L, "__mm_exit_requested");
+    }
+}
+
 // ── Cart loader ──────────────────────────────────────────────────────────────
 esp_err_t mm_lua_run_cart(const char *cart_dir)
 {
@@ -99,9 +134,21 @@ esp_err_t mm_lua_run_cart(const char *cart_dir)
         return ESP_ERR_INVALID_STATE;
     }
 
+    // Detect launcher cart (for global hotkey suppression)
+    s_is_launcher = (strstr(cart_dir, "/system/launcher") != NULL);
+    s_boot_hold = 0;
+
+    // Reset hotkey state: a still-held BOOT/SELECT from the previous cart
+    // (e.g. launcher → A starts game while BOOT was still down) must NOT
+    // immediately trigger "back to launcher" on the new cart.
+    mm_input_reset_hotkeys();
+
     // Build path to cart.lua
     char cart_path[128];
     snprintf(cart_path, sizeof(cart_path), "%s/cart.lua", cart_dir);
+
+    // Clear next-cart AFTER reading cart_dir (cart_dir may point into s_next_cart)
+    s_next_cart[0] = '\0';
 
     ESP_LOGI(TAG, "Loading cart: %s", cart_path);
 
@@ -147,13 +194,30 @@ esp_err_t mm_lua_run_cart(const char *cart_dir)
 
     ESP_LOGI(TAG, "Cart running: %s", cart_dir);
 
-    // Main game loop: update() + draw() + gfx.flip(), target 30 FPS
-    const int64_t frame_us = 33333; // 33.3 ms = 30 FPS
+    // Main game loop: update() + draw() + gfx.flip().  gfx_flush()
+    // is the natural rate limiter (~25-30 fps).  No artificial frame pacing.
     while (1) {
-        int64_t t0 = esp_timer_get_time();
-
-        // Poll input (update edge state before update())
+        // Poll input (read current state only, edge snap done at end of frame)
         mm_input_poll();
+
+        // ── Global hotkeys (BACK TO LAUNCHER) — C-side, works for ALL carts ──
+        if (!s_is_launcher) {
+            if (mm_input_boot_held()) {
+                s_boot_hold++;
+                if (s_boot_hold > 30) {  // ~1s hold
+                    s_boot_hold = 0;
+                    mm_lua_request_cart("/sdcard/system/launcher");
+                    break;
+                }
+            } else {
+                s_boot_hold = 0;
+            }
+            if (mm_input_select_pressed()) {
+                s_boot_hold = 0;
+                mm_lua_request_cart("/sdcard/system/launcher");
+                break;
+            }
+        }
 
         // update()
         lua_getglobal(s_L, "update");
@@ -180,10 +244,11 @@ esp_err_t mm_lua_run_cart(const char *cart_dir)
             return ESP_OK;
         }
 
-        // Frame pacing: sleep remaining time in frame budget
-        int64_t elapsed = esp_timer_get_time() - t0;
-        if (elapsed < frame_us) {
-            vTaskDelay(pdMS_TO_TICKS((frame_us - elapsed) / 1000));
-        }
+        // End-of-frame edge snapshot for input.pressed() detection
+        mm_input_snap();
+
+        // Yield to BLE/WiFi tasks (~10ms)
+        vTaskDelay(1);
     }
+    return ESP_OK;
 }

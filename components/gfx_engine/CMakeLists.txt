@@ -3,6 +3,7 @@ idf_component_register(
         "gfx_framebuffer.c"
         "gfx_bayer.c"
         "gfx_draw.c"
+        "gfx_text.c"
     INCLUDE_DIRS
         "."
     REQUIRES

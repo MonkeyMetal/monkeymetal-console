@@ -1,8 +1,12 @@
 -- ============================================================
--- MonkeyMetal Console — Snake  v1.0
--- Controls: BOOT key = turn right 90°
+-- MonkeyMetal Console — Snake  v1.3
+-- Controls: D-Pad (up/down/left/right) = direction
+--           A / START = confirm on title / restart on game-over
+--           BOOT key (system) = fallback A button
+--           SELECT (LS click) or BOOT long-press = back to Launcher
 -- Rules:    eat food to grow, wall or self = game over
 -- Screen:   400×300 (gfx.W × gfx.H)
+-- Audio:    audio.tone() for eat/die/start sounds
 -- ============================================================
 
 -- ── Grid config ──────────────────────────────────────────────
@@ -37,6 +41,9 @@ local move_timer  -- frames until next move
 local MOVE_INTERVAL = 6   -- move every N frames (~5 moves/sec at 30fps)
 local state       -- "play" | "over" | "title"
 local blink_timer -- for game-over blink effect
+
+-- Manual edge detection (input.pressed has C-side timing bug)
+local up_prev, dn_prev, lt_prev, rt_prev = false, false, false, false
 
 -- ── Helpers ───────────────────────────────────────────────────
 local function rand_food()
@@ -81,12 +88,31 @@ local function start_game()
     move_timer = MOVE_INTERVAL
     state      = "play"
     blink_timer = 0
+    up_prev, dn_prev, lt_prev, rt_prev = false, false, false, false
     food = rand_food()
 end
 
 -- ── init / update / draw ──────────────────────────────────────
+-- ── Sound effects ─────────────────────────────────────────────
+local function sfx_eat()
+    audio.tone(880, 80, 70)   -- high beep
+end
+
+local function sfx_die()
+    -- Descending tones
+    audio.tone(300, 120, 80)
+    system.time_ms()           -- tiny gap (let tone finish)
+    audio.tone(180, 200, 80)
+end
+
+local function sfx_start()
+    audio.tone(440, 80, 60)
+    audio.tone(660, 80, 60)
+end
+
 function init()
-    system.log("Snake init()")
+    system.log("Snake v1.1 init()")
+    audio.master(80)
     hi_score = 0
     state    = "title"
 end
@@ -94,7 +120,8 @@ end
 function update()
     -- ── Title screen: wait for button ────────────────────────
     if state == "title" then
-        if input.pressed("a") then
+        if input.pressed("a") or input.pressed("start") then
+            sfx_start()
             start_game()
         end
         return
@@ -103,17 +130,18 @@ function update()
     -- ── Game Over: wait for button then restart ───────────────
     if state == "over" then
         blink_timer = blink_timer + 1
-        if input.pressed("a") then
+        if input.pressed("a") or input.pressed("start") then
             start_game()
         end
         return
     end
 
-    -- ── Playing ───────────────────────────────────────────────
-    -- Turn right on button press (1→2→3→4→1)
-    if input.pressed("a") then
-        dir = dir % 4 + 1
-    end
+    -- ── Playing: handle D-Pad direction ──────────────────────
+    -- D-Pad: direct direction control (no reverse allowed)
+    if input.pressed("up")    and dir ~= 2 then dir = 4 end
+    if input.pressed("down")  and dir ~= 4 then dir = 2 end
+    if input.pressed("left")  and dir ~= 1 then dir = 3 end
+    if input.pressed("right") and dir ~= 3 then dir = 1 end
 
     -- Move every MOVE_INTERVAL frames
     move_timer = move_timer - 1
@@ -129,6 +157,7 @@ function update()
         alive = false
         state = "over"
         if score > hi_score then hi_score = score end
+        sfx_die()
         system.log("Game Over (wall) score=" .. score)
         return
     end
@@ -139,6 +168,7 @@ function update()
             alive = false
             state = "over"
             if score > hi_score then hi_score = score end
+            sfx_die()
             system.log("Game Over (self) score=" .. score)
             return
         end
@@ -150,6 +180,7 @@ function update()
     -- Check food
     if food and hx == food.x and hy == food.y then
         score = score + 1
+        sfx_eat()
         food  = rand_food()
         -- Speed up slightly every 5 points (min interval 2)
         if score % 5 == 0 and MOVE_INTERVAL > 2 then

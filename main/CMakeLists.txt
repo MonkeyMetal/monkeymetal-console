@@ -9,6 +9,8 @@ idf_component_register(
         wifi_bsp
         gfx_engine
         lua_runtime
+        audio_engine
+        input_bt_hid
         esp_timer
         nvs_flash
         driver

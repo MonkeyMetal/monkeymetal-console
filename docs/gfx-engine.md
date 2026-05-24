@@ -1,8 +1,8 @@
-# Graphics Engine (gfx_engine) — M1
+# Graphics Engine (gfx_engine)
 
 > **组件路径:** `components/gfx_engine/`
 > **依赖:** `port_bsp`(LCD 推屏)
-> **状态:** M1 完成,真机验收 2026-05-23
+> **状态:** v1.0.0,真机验收通过
 
 ---
 
@@ -46,6 +46,8 @@
 | `gfx_engine.h` | 公共 API 声明,唯一对外头文件 |
 | `gfx_framebuffer.c` | 帧缓冲分配、`gfx_init` / `gfx_clear` / `gfx_pixel` |
 | `gfx_draw.c` | 绘图原语:line / rect / circle |
+| `gfx_text.c` | 8×8 位图字体渲染,ASCII 32–126 |
+| `gfx_font8x8.h` | 8×8 字体点阵数据 |
 | `gfx_bayer.c` | Bayer 抖动 + ST7305 像素打包 + `gfx_flush` |
 
 ---
@@ -115,7 +117,19 @@ void gfx_circle(int cx, int cy, int r, gfx_color_t color, bool fill);
 - 空心:midpoint 算法,精确 8 对称
 - 实心:扫描线 + `sqrt`,每行填一段
 
-### 3.8 推屏
+### 3.8 文字
+
+```c
+void gfx_text(const char *s, int x, int y, gfx_color_t color);
+void gfx_text_char(char ch, int x, int y, gfx_color_t color);
+```
+
+- 8×8 位图字体,ASCII 32–126
+- 8 像素宽,8 像素高,无间距
+- `gfx_text` 自动换行到 `(x, y+8)`,不处理窗口裁剪
+- `gfx_text_char` 画单个字符
+
+### 3.9 推屏
 
 ```c
 esp_err_t gfx_flush(void);
@@ -139,12 +153,10 @@ while (1) {
     gfx_rect(player_x, player_y, 16, 16, GFX_BLACK, true);
     gfx_circle(enemy_x, enemy_y, 8, GFX_GRAY(64), false);
     gfx_line(0, 200, 400, 200, GFX_GRAY(128));
+    gfx_text("SCORE 42", 10, 10, GFX_BLACK);
 
     // 3. 推屏(阻塞 ~30 ms)
     gfx_flush();
-
-    // 4. 处理输入(M5 后)
-    // input_poll();
 }
 ```
 
@@ -223,27 +235,22 @@ inv_y      = HEIGHT-1-y   ← ST7305 从底部向上扫描
 
 ---
 
-## 9. M2 之后的扩展点
+## 9. Lua 绑定
 
-M2(Lua 运行时)需要把这些 C 函数暴露给 Lua:
+C API 已全部暴露给 Lua 运行时:
 
 ```lua
 -- 对应关系
-gfx.clear(c)            → gfx_clear(GFX_GRAY(c))
-gfx.pixel(x,y,c)        → gfx_pixel(x,y,GFX_GRAY(c))
-gfx.line(x1,y1,x2,y2,c) → gfx_line(...)
-gfx.rect(x,y,w,h,c,fill)→ gfx_rect(...)
-gfx.circle(cx,cy,r,c,f) → gfx_circle(...)
+gfx.clear(c)             → gfx_clear(GFX_GRAY(c))
+gfx.pixel(x, y, c)       → gfx_pixel(x, y, GFX_GRAY(c))
+gfx.line(x1,y1,x2,y2,c)  → gfx_line(...)
+gfx.rect(x,y,w,h,c,fill) → gfx_rect(...)
+gfx.circle(cx,cy,r,c,f)  → gfx_circle(...)
+gfx.text(s, x, y, c)     → gfx_text(s, x, y, GFX_GRAY(c))
 gfx.flip()               → gfx_flush()
 ```
 
 Lua 层的 `c` 参数约定 0–255 灰阶,binding 层统一转 `GFX_GRAY(c)`。
-
-待 M1 之后补充的功能(本文档更新时删掉对应条目):
-- `gfx_sprite()` — .mmi 图像贴图
-- `gfx_text()` — 位图字体渲染
-- `gfx_set_blend()` — NORMAL / XOR / MASK 混合模式
-- 双缓冲(前后台 framebuffer 交换,消除撕裂)
 
 ---
 
@@ -254,4 +261,4 @@ Lua 层的 `c` 参数约定 0–255 灰阶,binding 层统一转 `GFX_GRAY(c)`。
 | 屏幕上下翻转 | 忘记 `inv_y = HEIGHT-1-y` | 已修(真机验收通过) |
 | 灰色区域出现水平条纹 | Bayer 矩阵用行地址模 4 错误 | 已修 |
 | `gfx_flush` 后花屏 | `s_output_1bpp` 行优先打包,不符合 ST7305 landscape 格式 | 已修,见 §6 |
-| 大实心圆边缘锯齿 | `sqrt` 整数截断 | 已知,M2 前可接受 |
+| 大实心圆边缘锯齿 | `sqrt` 整数截断 | 已知,可接受 |

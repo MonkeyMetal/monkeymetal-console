@@ -16,6 +16,7 @@
 
 #include "monkey_metal.h"
 #include "display_bsp.h"
+#include "audio_engine.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <string.h>
@@ -112,7 +113,7 @@ void draw_text(DisplayPort *lcd, const char *s, int x0, int y0, int scale, uint8
 /* Ape head silhouette + features.  All hard-coded for 400x300 panel. */
 void draw_monkey(DisplayPort *lcd, bool eyes_open)
 {
-    const int cx = 200, cy = 130;
+    const int cx = 200, cy = 120;
 
     /* clear background to white */
     fill_rect(lcd, 0, 0, W, H, WHITE);
@@ -159,23 +160,35 @@ void draw_monkey(DisplayPort *lcd, bool eyes_open)
 
 extern "C" void monkey_metal_play(DisplayPort *lcd)
 {
-    /* Frame 1: monkey, eyes open, no banner */
+    // "MONKEY METAL" centering: 12 chars, scale=4.
+    //   per-char advance = 6*4 = 24 px; last char glyph itself is 5*4 = 20 px.
+    //   total width = 11 * 24 + 20 = 284 px
+    //   x_start    = (400 - 284) / 2 = 58
+    constexpr int kTitleX     = 58;
+    constexpr int kTitleY     = 230;
+    constexpr int kTitleScale = 4;
+    constexpr int kTitleW     = 11 * 6 * kTitleScale + 5 * kTitleScale; // 284
+    constexpr int kUnderlineY = kTitleY + 7 * kTitleScale + 2;          // 260
+
+    /* Frame 1: monkey eyes open, C5 tone */
+    audio_tone_play(523, 100, 70);
     draw_monkey(lcd, true);
-    draw_text(lcd, "MONKEY METAL", 116, 220, 4, BLACK);
+    draw_text(lcd, "MONKEY METAL", kTitleX, kTitleY, kTitleScale, BLACK);
     lcd->RLCD_Display();
     vTaskDelay(pdMS_TO_TICKS(600));
 
-    /* Frame 2: blink */
+    /* Frame 2: blink, E5 tone */
+    audio_tone_play(659, 100, 70);
     draw_monkey(lcd, false);
-    draw_text(lcd, "MONKEY METAL", 116, 220, 4, BLACK);
+    draw_text(lcd, "MONKEY METAL", kTitleX, kTitleY, kTitleScale, BLACK);
     lcd->RLCD_Display();
     vTaskDelay(pdMS_TO_TICKS(150));
 
-    /* Frame 3: eyes open again, second beat */
+    /* Frame 3: eyes open, underline, G5 tone */
+    audio_tone_play(784, 250, 80);
     draw_monkey(lcd, true);
-    draw_text(lcd, "MONKEY METAL", 116, 220, 4, BLACK);
-    /* underline */
-    fill_rect(lcd, 116, 250, 12 * 6 * 4 - 4, 3, BLACK);
+    draw_text(lcd, "MONKEY METAL", kTitleX, kTitleY, kTitleScale, BLACK);
+    fill_rect(lcd, kTitleX, kUnderlineY, kTitleW, 3, BLACK);
     lcd->RLCD_Display();
     vTaskDelay(pdMS_TO_TICKS(900));
 }

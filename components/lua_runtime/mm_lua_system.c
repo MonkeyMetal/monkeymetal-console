@@ -2,17 +2,34 @@
 /// @brief Lua binding for system utilities (system.* table)
 ///
 /// Lua API:
-///   system.time_ms()     milliseconds since boot
-///   system.exit()        signal cart to exit cleanly
-///   system.log(msg)      print to serial (ESP_LOGI)
+///   system.time_ms()       milliseconds since boot
+///   system.exit()          signal cart to exit cleanly
+///   system.log(msg)        print to serial (ESP_LOGI)
+///   system.run_cart(path)  switch to another cart
+///   system.list_dir(path)  list directory entries (/sdcard/ only)
+///   system.read_file(path) read file as string (/sdcard/ only)
 
 #include "lua.h"
 #include "lauxlib.h"
+#include "mm_lua_runtime.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include <dirent.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 static const char *TAG = "lua_sys";
 
+#define MAX_FILE_SIZE  65536   // 64KB
+
+// ── Path safety check ───────────────────────────────────────────────────────
+static bool path_ok(const char *path)
+{
+    return (strncmp(path, "/sdcard/", 8) == 0 && strlen(path) > 8);
+}
+
+// ── system.time_ms ──────────────────────────────────────────────────────────
 static int l_system_time_ms(lua_State *L)
 {
     int64_t ms = esp_timer_get_time() / 1000;
@@ -20,15 +37,16 @@ static int l_system_time_ms(lua_State *L)
     return 1;
 }
 
+// ── system.exit ─────────────────────────────────────────────────────────────
 static int l_system_exit(lua_State *L)
 {
     (void)L;
-    // Set a global flag; the cart loop checks it after each frame
     lua_pushboolean(L, true);
     lua_setglobal(L, "__mm_exit_requested");
     return 0;
 }
 
+// ── system.log ──────────────────────────────────────────────────────────────
 static int l_system_log(lua_State *L)
 {
     const char *msg = luaL_checkstring(L, 1);
@@ -36,10 +54,111 @@ static int l_system_log(lua_State *L)
     return 0;
 }
 
+// ── system.run_cart ─────────────────────────────────────────────────────────
+static int l_system_run_cart(lua_State *L)
+{
+    const char *path = luaL_checkstring(L, 1);
+    if (!path_ok(path)) {
+        ESP_LOGW(TAG, "run_cart rejected path: %s", path);
+        lua_pushboolean(L, false);
+        return 1;
+    }
+    mm_lua_request_cart(path);
+    return 0;
+}
+
+// ── system.list_dir ─────────────────────────────────────────────────────────
+static int l_system_list_dir(lua_State *L)
+{
+    const char *path = luaL_checkstring(L, 1);
+    if (!path_ok(path)) {
+        lua_newtable(L);
+        return 1; // empty table
+    }
+
+    DIR *d = opendir(path);
+    if (!d) {
+        lua_newtable(L);
+        return 1;
+    }
+
+    lua_newtable(L);
+    int idx = 1;
+
+    struct dirent *entry;
+    while ((entry = readdir(d)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        lua_pushinteger(L, idx++);
+        lua_newtable(L);
+
+        lua_pushstring(L, entry->d_name);
+        lua_setfield(L, -2, "name");
+
+        lua_pushboolean(L, entry->d_type == DT_DIR);
+        lua_setfield(L, -2, "is_dir");
+
+        lua_settable(L, -3);
+    }
+
+    closedir(d);
+    return 1;
+}
+
+// ── system.read_file ────────────────────────────────────────────────────────
+static int l_system_read_file(lua_State *L)
+{
+    const char *path = luaL_checkstring(L, 1);
+    if (!path_ok(path)) {
+        lua_pushnil(L);
+        lua_pushstring(L, "path rejected");
+        return 2;
+    }
+
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        lua_pushnil(L);
+        lua_pushstring(L, "open failed");
+        return 2;
+    }
+
+    fseek(f, 0, SEEK_END);
+    long fsize = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    if (fsize <= 0 || fsize > MAX_FILE_SIZE) {
+        fclose(f);
+        lua_pushnil(L);
+        lua_pushstring(L, "size out of range");
+        return 2;
+    }
+
+    char *buf = (char *)malloc(fsize + 1);
+    if (!buf) {
+        fclose(f);
+        lua_pushnil(L);
+        lua_pushstring(L, "alloc failed");
+        return 2;
+    }
+
+    size_t n = fread(buf, 1, fsize, f);
+    fclose(f);
+    buf[n] = '\0';
+
+    lua_pushstring(L, buf);
+    free(buf);
+    return 1;
+}
+
+// ── Register table ──────────────────────────────────────────────────────────
 static const luaL_Reg system_funcs[] = {
-    {"time_ms", l_system_time_ms},
-    {"exit",    l_system_exit},
-    {"log",     l_system_log},
+    {"time_ms",   l_system_time_ms},
+    {"exit",      l_system_exit},
+    {"log",       l_system_log},
+    {"run_cart",  l_system_run_cart},
+    {"list_dir",  l_system_list_dir},
+    {"read_file", l_system_read_file},
     {NULL, NULL}
 };
 

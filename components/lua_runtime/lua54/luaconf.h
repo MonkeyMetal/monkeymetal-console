@@ -19,22 +19,20 @@
 ** Empty path strings — no filesystem path search on bare metal.
 ** ─────────────────────────────────────────────────────────────────────── */
 #if defined(ESP_PLATFORM)
-  #if !defined(LUA_FLOAT_TYPE)
-    #define LUA_FLOAT_TYPE   LUA_FLOAT_FLOAT
-  #endif
-  #if !defined(LUA_INT_TYPE)
-    #define LUA_INT_TYPE     LUA_INT_INT
-  #endif
-  #if !defined(LUAI_MAXSTACK)
-    #define LUAI_MAXSTACK    2000
-  #endif
-  #if !defined(LUA_PATH_DEFAULT)
-    #define LUA_PATH_DEFAULT ""
-  #endif
-  #if !defined(LUA_CPATH_DEFAULT)
-    #define LUA_CPATH_DEFAULT ""
-  #endif
-  #if !defined(lua_getlocaledecpoint)
+  /* Force single-precision float and 32-bit int for ESP32-S3.
+   * Use #undef + #define so these win even if luaconf.h later
+   * tries to set its own defaults via #if !defined guards. */
+  #undef  LUA_FLOAT_TYPE
+  #define LUA_FLOAT_TYPE   LUA_FLOAT_FLOAT
+  #undef  LUA_INT_TYPE
+  #define LUA_INT_TYPE     LUA_INT_INT
+  #undef  LUAI_MAXSTACK
+  #define LUAI_MAXSTACK    2000
+  #undef  LUA_PATH_DEFAULT
+  #define LUA_PATH_DEFAULT ""
+  #undef  LUA_CPATH_DEFAULT
+  #define LUA_CPATH_DEFAULT ""
+  #ifndef lua_getlocaledecpoint
     #define lua_getlocaledecpoint() '.'
   #endif
 #endif /* ESP_PLATFORM */
@@ -186,8 +184,12 @@
 #else		/* }{ */
 /* use defaults */
 
+#ifndef LUA_INT_TYPE
 #define LUA_INT_TYPE	LUA_INT_DEFAULT
+#endif
+#ifndef LUA_FLOAT_TYPE
 #define LUA_FLOAT_TYPE	LUA_FLOAT_DEFAULT
+#endif
 
 #endif				/* } */
 
@@ -773,10 +775,12 @@
 ** space (and to reserve some numbers for pseudo-indices).
 ** (It must fit into max(size_t)/32 and max(int)/2.)
 */
+#ifndef LUAI_MAXSTACK
 #if LUAI_IS32INT
 #define LUAI_MAXSTACK		1000000
 #else
 #define LUAI_MAXSTACK		15000
+#endif
 #endif
 
 
