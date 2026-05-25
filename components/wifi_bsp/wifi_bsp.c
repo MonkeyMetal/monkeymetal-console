@@ -17,6 +17,7 @@ static const char *TAG = "wifi_bsp";
 
 static volatile bool s_connected = false;
 static int           s_retry_cnt = 0;
+static char          s_ip_str[16] = "0.0.0.0";
 #define MAX_RETRY 10
 
 static void on_wifi_event(void *arg, esp_event_base_t base,
@@ -41,7 +42,8 @@ static void on_ip_event(void *arg, esp_event_base_t base,
 {
     if (id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *evt = (ip_event_got_ip_t *)data;
-        ESP_LOGI(TAG, "GOT IP: " IPSTR, IP2STR(&evt->ip_info.ip));
+        snprintf(s_ip_str, sizeof(s_ip_str), IPSTR, IP2STR(&evt->ip_info.ip));
+        ESP_LOGI(TAG, "GOT IP: %s", s_ip_str);
         s_retry_cnt = 0;
         s_connected = true;
     }
@@ -74,4 +76,9 @@ void gbemu_wifi_init(void)
 bool gbemu_wifi_is_connected(void)
 {
     return s_connected;
+}
+
+const char *gbemu_wifi_get_ip(void)
+{
+    return s_ip_str;
 }

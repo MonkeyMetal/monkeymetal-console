@@ -7,7 +7,7 @@
 
 [English](#english) · [中文](#中文)
 
-![status](https://img.shields.io/badge/version-v1.0.0-brightgreen)
+![status](https://img.shields.io/badge/version-v1.0.1-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 ![target](https://img.shields.io/badge/board-ESP32--S3--RLCD--4.2-red)
 ![idf](https://img.shields.io/badge/ESP--IDF-v5.5.x-green)
@@ -52,16 +52,21 @@ This is **not an emulator**. It runs games made specifically for this console.
 | Wireless | Wi-Fi 2.4 G + Bluetooth 5 (BLE) |
 | Power | USB-C, optional 3.7 V Li-ion + TP4056 |
 
-### 📊 v1.0.0 features
+### 📊 v1.0.1 features
 
 | Feature | Status |
 | --- | --- |
-| Graphics engine (16bpp framebuffer + Bayer 4×4 dither + draw API) | ✅ |
+| Graphics engine (16bpp framebuffer + Bayer 4×4 dither + draw API + text) | ✅ |
 | Lua 5.4 runtime + cart loader (sandboxed VM, PSRAM allocator) | ✅ |
-| Snake game (D-Pad + A button, eat/die sounds, score tracking) | ✅ |
-| Bluetooth HID gamepad (8BitDo / Xbox / Switch Pro, auto-reconnect) | ✅ |
+| Bluetooth HID gamepad (8BitDo / Xbox / Switch Pro, auto-reconnect, fast pairing) | ✅ |
 | Audio engine (ES8311 I²S codec, tone/beep API) | ✅ |
-| System launcher (browse & launch carts from TF card) | ✅ |
+| System launcher (browse & launch carts, settings, boot animation) | ✅ |
+| **Starfield screensaver** (3D warp particles, auto-activate after idle timeout) | ✅ v1.0.1 |
+| **SHTC3 temperature + humidity** (I2C sensor, calibrated) | ✅ v1.0.1 |
+| **PCF85063 RTC + SNTP time sync** (network time via WiFi) | ✅ v1.0.1 |
+| **WiFi file server** (port 9999, send files over network to TF card) | ✅ v1.0.1 |
+| **Settings page** (volume, screensaver timeout, WiFi, IP display) | ✅ v1.0.1 |
+| Snake game (D-Pad + A button, eat/die sounds, score tracking) | ✅ |
 | Gamepad test cart (visual button/joystick tester) | ✅ |
 | BOOT key fallback (GPIO 0, long-press back to launcher) | ✅ |
 
@@ -103,13 +108,15 @@ TF card root/
 ```
 
 #### What you'll see
-1. MonkeyMetal boot splash (~1.6 s)
-2. System launcher — shows available games on TF card
-3. **Pair a Bluetooth gamepad** — press a button on your controller, it auto-connects
-4. **Snake**: D-Pad to steer, A to start/restart, eat food to grow, audio feedback
-5. **Gamepad Test**: visual feedback for all buttons and joysticks
-6. **BOOT key** (on-board): long-press (~1s) to return to launcher from any game
-7. **SELECT** (LS click): instant return to launcher
+1. **Boot animation** — hyper-drive starfield + system checklist + retro scanline logo
+2. **System launcher** — shows available games on TF card
+3. **Settings** (SELECT) — volume, screensaver timeout (5-60s), WiFi status, IP address
+4. **Starfield screensaver** — 3D warp particles, temperature, humidity, time, IP; auto-activates after idle
+5. **Pair a Bluetooth gamepad** — quick 15s scan, auto-connect, BOOT key to skip
+6. **Snake**: D-Pad to steer, A to start/restart, eat food to grow, audio feedback
+7. **Gamepad Test**: visual feedback for all buttons and joysticks
+8. **WiFi file server** — send files to TF card over network (port 9999, `tools/send_file.py`)
+9. **BOOT key** — long-press to return to launcher; **SELECT** — instant return
 
 ### 📁 Layout
 
@@ -119,21 +126,26 @@ monkeymetal-console/
 ├── LICENSE                       MIT
 ├── docs/
 │   ├── DEVELOPMENT-GUIDE.md      how to contribute / AI agent rules
-│   └── gfx-engine.md             graphics engine reference
+│   ├── gfx-engine.md             graphics engine reference
+│   └── boot-splash.md            boot animation design
 ├── main/                         boot sequence + cart launch
 ├── components/
-│   ├── gfx_engine/               16bpp framebuffer + Bayer dither + draw API
-│   ├── lua_runtime/              Lua 5.4 VM + gfx/input/system/audio bindings
+│   ├── gfx_engine/               16bpp framebuffer + Bayer dither + draw API + 8x8 font
+│   ├── lua_runtime/              Lua 5.4 VM + gfx/input/system/audio/sensor bindings
 │   ├── audio_engine/             ES8311 I²S codec driver + tone API
 │   ├── input_bt_hid/             BLE HID gamepad host + auto-reconnect
-│   ├── port_bsp/                 ST7305 LCD + SDMMC drivers
-│   └── wifi_bsp/                 Wi-Fi STA bring-up
+│   ├── port_bsp/                 ST7305 LCD (factory-calibrated VCOM) + SDMMC drivers
+│   └── wifi_bsp/                 Wi-Fi STA + TCP file server (port 9999)
+├── tools/
+│   └── send_file.py              WiFi file transfer script (PC → console)
 ├── sdcard_root/
 │   ├── games/
 │   │   ├── snake/                Snake game cart
-│   │   └── gamepad_test/         Gamepad tester cart
+│   │   ├── gamepad_test/         Gamepad tester cart
+│   │   ├── monkey_leaper/        Monkey Leaper platformer
+│   │   └── space_defender/       Space Defender shooter
 │   └── system/
-│       └── launcher/             System launcher cart
+│       └── launcher/             System launcher (boot anim + screensaver + settings)
 ├── partitions.csv                8 MB factory + 4 MB FAT
 └── sdkconfig.defaults            PSRAM Octal, BSS-in-PSRAM, etc.
 ```
@@ -190,16 +202,21 @@ Each game cart ships with its own license inside its directory.
 | 无线 | WiFi 2.4G + 蓝牙 5(BLE) |
 | 供电 | USB-C,选配 3.7V 锂电 + TP4056 |
 
-### 📊 v1.0.0 功能
+### 📊 v1.0.1 功能
 
 | 功能 | 状态 |
 | --- | --- |
-| 图形引擎(16bpp 帧缓冲 + Bayer 4×4 抖动 + 绘图 API) | ✅ |
+| 图形引擎(16bpp 帧缓冲 + Bayer 4×4 抖动 + 绘图 API + 文字) | ✅ |
 | Lua 5.4 运行时 + 卡带加载器(沙箱 VM,PSRAM 分配器) | ✅ |
-| 贪吃蛇游戏(方向键 + A 键,吃/死音效,分数记录) | ✅ |
-| 蓝牙 HID 手柄(8BitDo / Xbox / Switch Pro,自动重连) | ✅ |
+| 蓝牙 HID 手柄(8BitDo / Xbox / Switch Pro,自动重连,快速配对) | ✅ |
 | 音频引擎(ES8311 I²S 编解码,tone/beep API) | ✅ |
-| 系统启动器(浏览并启动 TF 卡上的卡带) | ✅ |
+| 系统启动器(浏览启动卡带,设置页,开机动画) | ✅ |
+| **星空屏保**(3D 穿梭粒子,闲置超时自动激活) | ✅ v1.0.1 |
+| **SHTC3 温湿度传感器**(I2C 读取,已校准) | ✅ v1.0.1 |
+| **PCF85063 RTC + SNTP 网络校时**(WiFi 连接自动同步) | ✅ v1.0.1 |
+| **WiFi 文件服务器**(端口 9999,网络直传文件到 TF 卡) | ✅ v1.0.1 |
+| **设置页面**(音量,屏保超时,WiFi 状态,IP 显示) | ✅ v1.0.1 |
+| 贪吃蛇游戏(方向键 + A 键,吃/死音效,分数记录) | ✅ |
 | 手柄测试卡带(可视化按键/摇杆测试) | ✅ |
 | BOOT 键备用(GPIO 0,长按返回启动器) | ✅ |
 
@@ -241,13 +258,15 @@ TF 卡根目录/
 ```
 
 #### 当前能看到什么
-1. MonkeyMetal 开机动画(约 1.6 秒)
-2. 系统启动器 —— 显示 TF 卡上的可用游戏
-3. **配对蓝牙手柄** —— 按一下手柄任意键,自动连接
-4. **贪吃蛇**:方向键操控,A 键开始/重来,吃食物变长,有音效反馈
-5. **手柄测试**:所有按键和摇杆的可视化反馈
-6. **BOOT 键**(板载):长按约 1 秒返回启动器
-7. **SELECT**(LS 按下):瞬间返回启动器
+1. **开机动画** —— 超光速星空 + 系统自检列表 + 复古扫描线 Logo
+2. **系统启动器** —— 显示 TF 卡上的可用游戏
+3. **设置页面**(SELECT) —— 音量,屏保超时(5-60秒),WiFi 状态,IP 地址
+4. **星空屏保** —— 3D 穿梭粒子,显示温度湿度时间 IP,闲置后自动激活
+5. **配对蓝牙手柄** —— 15 秒快速扫描,自动连接,BOOT 键跳过
+6. **贪吃蛇**:方向键操控,A 键开始/重来,吃食物变长,有音效反馈
+7. **手柄测试**:所有按键和摇杆的可视化反馈
+8. **WiFi 文件服务器** —— 通过网络直传文件到 TF 卡(端口 9999,`tools/send_file.py`)
+9. **BOOT 键**长按返回启动器;**SELECT** 瞬间返回
 
 ### 📁 目录结构
 
@@ -257,21 +276,26 @@ monkeymetal-console/
 ├── LICENSE                       MIT
 ├── docs/
 │   ├── DEVELOPMENT-GUIDE.md      协作/AI 开发指南
-│   └── gfx-engine.md             图形引擎参考文档
+│   ├── gfx-engine.md             图形引擎参考文档
+│   └── boot-splash.md            开机动画设计文档
 ├── main/                         启动序列 + 加载卡带
 ├── components/
-│   ├── gfx_engine/               16bpp 帧缓冲 + Bayer 抖动 + 绘图 API
-│   ├── lua_runtime/              Lua 5.4 VM + gfx/input/system/audio binding
+│   ├── gfx_engine/               16bpp 帧缓冲 + Bayer 抖动 + 绘图 API + 8x8 字体
+│   ├── lua_runtime/              Lua 5.4 VM + gfx/input/system/audio/sensor binding
 │   ├── audio_engine/             ES8311 I²S 编解码驱动 + tone API
 │   ├── input_bt_hid/             BLE HID 手柄主机 + 自动重连
-│   ├── port_bsp/                 ST7305 LCD + SDMMC 驱动
-│   └── wifi_bsp/                 WiFi STA 启动
+│   ├── port_bsp/                 ST7305 LCD(工厂校准 VCOM) + SDMMC 驱动
+│   └── wifi_bsp/                 WiFi STA + TCP 文件服务器(端口 9999)
+├── tools/
+│   └── send_file.py              WiFi 文件传输脚本(PC → 掌机)
 ├── sdcard_root/
 │   ├── games/
 │   │   ├── snake/                贪吃蛇卡带
-│   │   └── gamepad_test/         手柄测试卡带
+│   │   ├── gamepad_test/         手柄测试卡带
+│   │   ├── monkey_leaper/        猴子跳跃平台游戏
+│   │   └── space_defender/       太空防御射击游戏
 │   └── system/
-│       └── launcher/             系统启动器卡带
+│       └── launcher/             系统启动器(开机动画 + 屏保 + 设置)
 ├── partitions.csv                8 MB factory + 4 MB FAT
 └── sdkconfig.defaults            PSRAM 八线、BSS 进 PSRAM 等
 ```

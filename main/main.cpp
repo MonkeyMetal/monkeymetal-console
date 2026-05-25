@@ -23,11 +23,13 @@
 #include "display_bsp.h"
 #include "sdcard_bsp.h"
 #include "wifi_bsp.h"
+#include "wifi_file_server.h"
 #include "monkey_metal.h"
 #include "gfx_engine.h"
 #include "mm_lua_runtime.h"
 #include "audio_engine.h"
 #include "bt_hid_host.h"
+#include "esp_sntp.h"
 #include "driver/gpio.h"
 
 static const char *TAG = "mm";
@@ -58,7 +60,6 @@ static void draw_centered(const char *s, int y, gfx_color_t c)
 
 static void bt_pairing_screen(void)
 {
-    // Configure BOOT GPIO for pairing screen input
     gpio_config_t boot_cfg = {
         .pin_bit_mask = (1ULL << BOOT_GPIO),
         .mode         = GPIO_MODE_INPUT,
@@ -68,34 +69,34 @@ static void bt_pairing_screen(void)
     };
     gpio_config(&boot_cfg);
 
-    gfx_clear(GFX_WHITE);
-    draw_centered("BLUETOOTH PAIRING", 16, GFX_BLACK);
-    gfx_line(40, 32, GFX_WIDTH - 40, 32, GFX_GRAY(180));
-    draw_centered("Scanning...", GFX_HEIGHT / 2 - 20, GFX_GRAY(128));
-    gfx_flush();
-
     int  wait_elapsed   = 0;
-    bool auto_connected  = false;
-    bool prev_boot       = false;
-    int  boot_hold_ms    = 0;
     int  last_flush_ms   = 0;
+    bool prev_boot       = false;
 
-    while (wait_elapsed < 30000) {
+    while (wait_elapsed < 15000) {
         vTaskDelay(pdMS_TO_TICKS(200));
         wait_elapsed += 200;
+
+        // BOOT short-press = skip (exit pairing)
+        bool cur_boot = boot_pressed();
+        if (!cur_boot && prev_boot) {
+            // Released after press → skip
+            bt_hid_scan_stop();
+            ESP_LOGI(TAG, "BT pairing skipped by user");
+            return;
+        }
+        prev_boot = cur_boot;
 
         bt_hid_scan_result_t devs[8];
         int ndev = bt_hid_get_scan_results(devs, 8);
 
-        // ── Auto-connect: exactly 1 device found after 5s scanning ────────
-        if (!auto_connected && ndev == 1 && wait_elapsed >= 5000) {
-            auto_connected = true;
+        // Auto-connect: exactly 1 device found → connect immediately
+        if (ndev == 1) {
             bt_hid_scan_stop();
 
             gfx_clear(GFX_WHITE);
             draw_centered("CONNECTING...", GFX_HEIGHT / 2 - 24, GFX_BLACK);
             gfx_text(devs[0].name, 40, GFX_HEIGHT / 2, GFX_GRAY(128));
-            draw_centered("(auto)", GFX_HEIGHT / 2 + 16, GFX_GRAY(180));
             gfx_flush();
 
             esp_err_t ret = bt_hid_connect_ex(devs[0].bda, devs[0].addr_type);
@@ -112,39 +113,7 @@ static void bt_pairing_screen(void)
             return;
         }
 
-        // ── Manual: BOOT key to cycle/hold-to-select ────────────────────
-        bool cur_boot = boot_pressed();
-        if (cur_boot && !prev_boot) {
-            boot_hold_ms = 200;
-        } else if (cur_boot && prev_boot) {
-            boot_hold_ms += 200;
-        } else if (!cur_boot && prev_boot) {
-            boot_hold_ms = 0;
-        }
-        prev_boot = cur_boot;
-
-        if (boot_hold_ms >= 1500 && ndev > 0) {
-            bt_hid_scan_stop();
-            gfx_clear(GFX_WHITE);
-            draw_centered("CONNECTING...", GFX_HEIGHT / 2 - 12, GFX_BLACK);
-            gfx_text(devs[0].name, 40, GFX_HEIGHT / 2 + 12, GFX_GRAY(128));
-            gfx_flush();
-
-            esp_err_t ret = bt_hid_connect_ex(devs[0].bda, devs[0].addr_type);
-            gfx_clear(GFX_WHITE);
-            if (ret == ESP_OK) {
-                draw_centered("CONNECTED!", GFX_HEIGHT / 2 - 12, GFX_BLACK);
-                gfx_text(devs[0].name, 40, GFX_HEIGHT / 2 + 12, GFX_GRAY(64));
-            } else {
-                draw_centered("FAILED", GFX_HEIGHT / 2 - 12, GFX_BLACK);
-                draw_centered("Using BOOT key", GFX_HEIGHT / 2 + 12, GFX_GRAY(128));
-            }
-            gfx_flush();
-            vTaskDelay(pdMS_TO_TICKS(2000));
-            return;
-        }
-
-        // ── Redraw ───────────────────────────────────────────────────────
+        // Redraw every 500ms
         if (wait_elapsed - last_flush_ms >= 500) {
             last_flush_ms = wait_elapsed;
             gfx_clear(GFX_WHITE);
@@ -153,16 +122,17 @@ static void bt_pairing_screen(void)
 
             if (ndev == 0) {
                 char buf[32];
-                snprintf(buf, sizeof(buf), "Scanning... %02ds", (30 - wait_elapsed / 1000));
+                snprintf(buf, sizeof(buf), "Searching... %02ds", (15 - wait_elapsed / 1000));
                 draw_centered(buf, GFX_HEIGHT / 2 - 12, GFX_GRAY(128));
-                draw_centered("Hold BOOT to skip", GFX_HEIGHT / 2 + 20, GFX_GRAY(180));
+                draw_centered("Press BOOT to skip", GFX_HEIGHT / 2 + 8, GFX_GRAY(64));
             } else {
-                draw_centered(devs[0].name, GFX_HEIGHT / 2 - 12, GFX_BLACK);
-                char rssi_buf[16];
-                snprintf(rssi_buf, sizeof(rssi_buf), "RSSI %d", devs[0].rssi);
-                draw_centered(rssi_buf, GFX_HEIGHT / 2 + 4, GFX_GRAY(128));
-                draw_centered("Auto-connect in 5s", GFX_HEIGHT / 2 + 24, GFX_GRAY(128));
-                draw_centered("Hold BOOT to connect now", GFX_HEIGHT / 2 + 36, GFX_GRAY(180));
+                for (int i = 0; i < ndev && i < 4; i++) {
+                    gfx_text(devs[i].name, 40, GFX_HEIGHT / 2 - 12 + i * 18, GFX_BLACK);
+                    char rssi_buf[16];
+                    snprintf(rssi_buf, sizeof(rssi_buf), "RSSI %d", devs[i].rssi);
+                    gfx_text(rssi_buf, 280, GFX_HEIGHT / 2 - 12 + i * 18, GFX_GRAY(128));
+                }
+                draw_centered("Press BOOT to skip", GFX_HEIGHT / 2 + 60, GFX_GRAY(64));
             }
             gfx_flush();
         }
@@ -216,6 +186,14 @@ extern "C" void app_main(void)
 
     /* 5. Wi-Fi (async, GOT_IP arrives later) */
     gbemu_wifi_init();
+    wifi_file_server_start();
+    esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    esp_sntp_setservername(0, "pool.ntp.org");
+    esp_sntp_set_sync_interval(3600000);  // 1 hour between syncs
+    esp_sntp_init();
+    // Trigger immediate sync (otherwise first poll can take minutes)
+    sntp_set_sync_mode(SNTP_SYNC_MODE_IMMED);
+    sntp_set_sync_interval(3600000);
     ESP_LOGI(TAG, "[5/9] WiFi init kicked off");
 
     /* 6. Init graphics engine */

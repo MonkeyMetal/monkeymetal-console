@@ -1,0 +1,9 @@
+{
+  "name": "Monkey Leaper",
+  "id": "com.monkey.monkey_leaper",
+  "version": "1.0.0",
+  "author": "MonkeyMetal Team",
+  "engine_min": "0.2.0",
+  "tags": ["platformer", "arcade", "retro"],
+  "entry": "cart.lua"
+}

@@ -1,6 +1,7 @@
 idf_component_register(
     SRCS
         "wifi_bsp.c"
+        "wifi_file_server.c"
     INCLUDE_DIRS
         "."
     PRIV_REQUIRES
@@ -9,4 +10,5 @@ idf_component_register(
         nvs_flash
     REQUIRES
         esp_wifi
+        lwip
 )

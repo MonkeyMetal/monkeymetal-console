@@ -104,8 +104,8 @@ void DisplayPort::RLCD_Init() {
 	RLCD_SendData(0x19);
 	RLCD_SendData(0x19);
 
-	RLCD_SendCommand(0xD8);
-	RLCD_SendData(0x80);
+	RLCD_SendCommand(0xD8);   // VCOM
+	RLCD_SendData(0xA6);      // amplitude (factory calibrated, better contrast)
 	RLCD_SendData(0xE9);
 
 	RLCD_SendCommand(0xB2);

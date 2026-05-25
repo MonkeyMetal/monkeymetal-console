@@ -18,6 +18,9 @@ void gbemu_wifi_init(void);
 /* 当前是否已经拿到 IP. */
 bool gbemu_wifi_is_connected(void);
 
+/* 获取当前 IP 地址字符串 (e.g. "192.168.1.100"). 未连接返回 "0.0.0.0". */
+const char *gbemu_wifi_get_ip(void);
+
 #ifdef __cplusplus
 }
 #endif

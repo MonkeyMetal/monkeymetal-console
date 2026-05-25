@@ -39,6 +39,7 @@ idf_component_register(
         "mm_lua_input.c"
         "mm_lua_system.c"
         "mm_lua_audio.c"
+        "mm_sensors.c"
     INCLUDE_DIRS
         "."
         "lua54"
@@ -47,6 +48,7 @@ idf_component_register(
         port_bsp
         audio_engine
         input_bt_hid
+        wifi_bsp
         fatfs
         esp_timer
         driver

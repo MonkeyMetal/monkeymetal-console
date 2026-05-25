@@ -1,0 +1,9 @@
+{
+  "name": "Space Defender",
+  "id": "com.monkey.space_defender",
+  "version": "1.0.0",
+  "author": "MonkeyMetal Team",
+  "engine_min": "0.2.0",
+  "tags": ["shooter", "arcade", "space"],
+  "entry": "cart.lua"
+}
